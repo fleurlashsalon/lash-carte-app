@@ -306,6 +306,11 @@ textarea {
     background 0.14s ease;
 }
 
+/* iPadのdate入力は右端が欠けやすいので余白を確保 */
+input[type='date'].textInput {
+  padding-right: 44px;
+}
+
 .textInput::placeholder {
   color: var(--muted-2);
 }
@@ -910,9 +915,21 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  /* iPad等のタブレット幅では基本情報を2列にして重なりを防ぐ */
   .grid3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .fieldSpan2 {
+    grid-column: span 2;
+  }
+}
+
+/* iPad(1024px)付近でも詰まりやすいので、少し広めの範囲で2列にする */
+@media (max-width: 1100px) {
+  .grid3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
   }
 
   .fieldSpan2 {
