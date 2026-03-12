@@ -51,6 +51,7 @@ const INITIAL_FORM = {
   turnover: undefined,
   moisture: undefined,
   habit: undefined,
+  memo: '',
 }
 
 function dataUrlToBase64(dataUrl) {
@@ -1375,6 +1376,7 @@ export default function App() {
               ))}
             </div>
           </SectionCard>
+
         </div>
 
         <div className="colRight">
@@ -1394,6 +1396,16 @@ export default function App() {
             <div id="pdf-current-chart">
               <RadarScoreChart data={chartData} />
             </div>
+          </SectionCard>
+
+          <SectionCard title="【5】メモ" subtitle="自由入力メモ欄（施術の気づきや注意点など）">
+            <textarea
+              className="textInput"
+              style={{ minHeight: '80px' }}
+              value={formValues.memo || ''}
+              onChange={(e) => setFormValues((prev) => ({ ...prev, memo: e.target.value }))}
+              placeholder="メモを自由に入力してください（施術の気づき・注意点・次回へのメモなど）"
+            />
           </SectionCard>
 
           <SectionCard title="顧客検索" subtitle="顧客ID優先 / 氏名・カナも検索できます">
