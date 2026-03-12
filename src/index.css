@@ -770,20 +770,22 @@ textarea {
 .imageModalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
+  padding: 14px;
 }
 
 .imageModal {
   width: min(900px, 96vw);
   max-height: 90vh;
-  background: var(--paper-strong);
+  background: #ffffff;
   border-radius: 22px;
   box-shadow: var(--shadow);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(15, 23, 42, 0.22);
   display: flex;
   flex-direction: column;
 }
@@ -809,6 +811,81 @@ textarea {
 .imageModalBody {
   padding: 12px 16px 16px;
   overflow: auto;
+}
+
+.imageManagerBody {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 0;
+  height: 100%;
+}
+
+.imageManagerSidebar {
+  border-right: 1px solid rgba(15, 23, 42, 0.10);
+  padding: 12px;
+  overflow: auto;
+  max-height: calc(90vh - 70px);
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.imageManagerItem {
+  width: 100%;
+  text-align: left;
+  padding: 10px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(92, 72, 84, 0.10);
+  background: #ffffff;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.imageManagerItem + .imageManagerItem {
+  margin-top: 8px;
+}
+
+.imageManagerItem:hover {
+  transform: translateY(-1px);
+  border-color: rgba(143, 111, 158, 0.22);
+}
+
+.imageManagerItem.isActive {
+  border-color: rgba(143, 111, 158, 0.30);
+  background: rgba(143, 111, 158, 0.07);
+}
+
+.imageManagerItemTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.imageManagerItemName {
+  font-weight: 900;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.imageManagerItemCount {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.imageManagerItemSub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.imageManagerMain {
+  overflow: auto;
+  max-height: calc(90vh - 70px);
+}
+
+.imageManagerMainHeader {
+  padding: 12px 16px 0;
 }
 
 .imageModalGrid {
@@ -875,5 +952,15 @@ textarea {
 
   .imageModalGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .imageManagerBody {
+    grid-template-columns: 1fr;
+  }
+
+  .imageManagerSidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(92, 72, 84, 0.10);
+    max-height: 240px;
   }
 }

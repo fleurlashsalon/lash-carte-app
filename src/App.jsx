@@ -75,6 +75,12 @@ export default function App() {
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [compareIds, setCompareIds] = useState([])
   const [imageModalRecord, setImageModalRecord] = useState(null)
+  const [imageManagerOpen, setImageManagerOpen] = useState(false)
+  const [imageManagerActiveRecordId, setImageManagerActiveRecordId] = useState('')
+  const [imageToolsMenuOpen, setImageToolsMenuOpen] = useState(false)
+  const [imageStorageInfoOpen, setImageStorageInfoOpen] = useState(false)
+  const [storageViewerOpen, setStorageViewerOpen] = useState(false)
+  const [customerListOpen, setCustomerListOpen] = useState(false)
   const [csvMenuOpen, setCsvMenuOpen] = useState(false)
   const csvInputRef = useRef(null)
   const customerNameRef = useRef(customerName)
@@ -137,10 +143,14 @@ export default function App() {
 
     records.forEach((rec) => {
       const id = getCustomerIdFromRecord(rec)
-      if (!id) return
-      if (!map.has(id)) {
-        map.set(id, {
-          customerId: id,
+      const name = String(rec.customerName || '').trim()
+      const key = id ? id : name ? `NOID:${name}` : ''
+      if (!key) return
+
+      if (!map.has(key)) {
+        map.set(key, {
+          customerKey: key,
+          customerId: id, // 空の場合あり
           customerName: rec.customerName || '',
           customerKana: rec.customerKana || '',
           birthday: rec.birthday || '',
@@ -160,6 +170,13 @@ export default function App() {
     return hit?.customerId || ''
   }, [customerList, searchText])
 
+  // 履歴一覧の対象: 顧客選択があればそれを優先、なければ検索の完全一致ID
+  const activeCustomerIdForHistory = useMemo(() => {
+    const selected = String(selectedCustomerId || '').trim()
+    if (selected) return selected
+    return matchedCustomerId
+  }, [matchedCustomerId, selectedCustomerId])
+
   const searchedCustomers = useMemo(() => {
     const keyword = searchText.trim().toLowerCase()
     if (!keyword) return []
@@ -170,21 +187,26 @@ export default function App() {
     })
     if (idMatches.length) return idMatches
 
-    // ID完全一致がなければ氏名/カナの部分一致で検索
+    // ID完全一致がなければ、顧客ID/氏名/カナの部分一致で検索
     return customerList.filter((c) => {
+      const id = (c.customerId || '').toLowerCase()
       const name = (c.customerName || '').toLowerCase()
       const kana = (c.customerKana || '').toLowerCase()
-      return name.includes(keyword) || kana.includes(keyword)
+      return id.includes(keyword) || name.includes(keyword) || kana.includes(keyword)
     })
   }, [customerList, searchText])
 
   const visibleRecords = useMemo(() => {
-    const id = matchedCustomerId
+    const id = activeCustomerIdForHistory
     if (!id) return []
 
     const sorted = [...records].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    if (String(id).startsWith('NOID:')) {
+      const name = String(id).slice('NOID:'.length)
+      return sorted.filter((rec) => !getCustomerIdFromRecord(rec) && String(rec.customerName || '').trim() === name)
+    }
     return sorted.filter((rec) => getCustomerIdFromRecord(rec) === id)
-  }, [records, matchedCustomerId])
+  }, [records, activeCustomerIdForHistory])
 
   const historyTotalPages = Math.max(1, Math.ceil(visibleRecords.length / HISTORY_PAGE_SIZE))
   const paginatedRecords = useMemo(() => {
@@ -194,7 +216,7 @@ export default function App() {
 
   useEffect(() => {
     setHistoryPage(1)
-  }, [matchedCustomerId, visibleRecords.length])
+  }, [activeCustomerIdForHistory, visibleRecords.length])
 
   const compareRecords = useMemo(() => {
     return visibleRecords.filter((rec) => compareIds.includes(rec.id))
@@ -540,7 +562,8 @@ export default function App() {
     setErrors({})
     setCurrentId(rec.id)
     setCurrentCreatedAt(rec.createdAt || Date.now())
-    setSelectedCustomerId(getCustomerIdFromRecord(rec))
+    const cid = getCustomerIdFromRecord(rec)
+    setSelectedCustomerId(cid || (rec.customerName ? `NOID:${String(rec.customerName).trim()}` : ''))
     setCompareIds([])
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -557,7 +580,8 @@ export default function App() {
     setFormValues(INITIAL_FORM)
     setImages([])
     setErrors({})
-    setSelectedCustomerId(getCustomerIdFromRecord(rec))
+    const cid = getCustomerIdFromRecord(rec)
+    setSelectedCustomerId(cid || (rec.customerName ? `NOID:${String(rec.customerName).trim()}` : ''))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -628,6 +652,149 @@ export default function App() {
     setImageModalRecord(null)
   }
 
+  const recordsWithImages = useMemo(() => {
+    return records
+      .filter((r) => Array.isArray(r.images) && r.images.length > 0)
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  }, [records])
+
+  const activeImageManagerRecord = useMemo(() => {
+    if (!imageManagerActiveRecordId) return null
+    return recordsWithImages.find((r) => r.id === imageManagerActiveRecordId) || null
+  }, [imageManagerActiveRecordId, recordsWithImages])
+
+  function handleOpenImageManager() {
+    setImageManagerOpen(true)
+    if (!imageManagerActiveRecordId && recordsWithImages.length) {
+      setImageManagerActiveRecordId(recordsWithImages[0].id)
+    }
+  }
+
+  function handleCloseImageManager() {
+    setImageManagerOpen(false)
+  }
+
+  function handleToggleImageToolsMenu() {
+    setImageToolsMenuOpen((o) => !o)
+  }
+
+  function handleCloseImageToolsMenu() {
+    setImageToolsMenuOpen(false)
+  }
+
+  function handleOpenImageStorageInfo() {
+    handleCloseImageToolsMenu()
+    setImageStorageInfoOpen(true)
+  }
+
+  function handleCloseImageStorageInfo() {
+    setImageStorageInfoOpen(false)
+  }
+
+  function handleOpenStorageViewer() {
+    handleCloseImageToolsMenu()
+    setStorageViewerOpen(true)
+  }
+
+  function handleCloseStorageViewer() {
+    setStorageViewerOpen(false)
+  }
+
+  function bytesToHuman(bytes) {
+    const b = Number(bytes) || 0
+    if (b < 1024) return `${b} B`
+    const kb = b / 1024
+    if (kb < 1024) return `${kb.toFixed(1)} KB`
+    const mb = kb / 1024
+    return `${mb.toFixed(2)} MB`
+  }
+
+  const storageSnapshot = useMemo(() => {
+    const key = 'lash-score-records'
+    const raw = localStorage.getItem(key) || ''
+    const approxBytes = raw.length * 2 // UTF-16 目安
+    const imageCount = records.reduce((sum, r) => sum + (Array.isArray(r.images) ? r.images.length : 0), 0)
+    return {
+      key,
+      raw,
+      approxBytes,
+      recordCount: records.length,
+      imageCount,
+    }
+  }, [records])
+
+  async function handleCopyStorageJson() {
+    try {
+      const text = storageSnapshot.raw || ''
+      if (!text) {
+        alert('保存データがありません')
+        return
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        alert('保存データ（JSON）をコピーしました')
+        return
+      }
+      alert('この環境では自動コピーができません。下のJSONを手動でコピーしてください。')
+    } catch (e) {
+      console.error(e)
+      alert('コピーに失敗しました。下のJSONを手動でコピーしてください。')
+    }
+  }
+
+  function handleDownloadStorageJson() {
+    try {
+      const text = storageSnapshot.raw || ''
+      if (!text) {
+        alert('保存データがありません')
+        return
+      }
+      const blob = new Blob([text], { type: 'application/json;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `lash-score-backup-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      alert('ダウンロードに失敗しました')
+    }
+  }
+
+  function handleOpenCustomerList() {
+    setCustomerListOpen(true)
+  }
+
+  function handleCloseCustomerList() {
+    setCustomerListOpen(false)
+  }
+
+  function handleDeleteSavedImage(recordId, imageId) {
+    const ok = window.confirm('この画像を削除しますか？（元に戻せません）')
+    if (!ok) return
+
+    const next = records.map((r) => {
+      if (r.id !== recordId) return r
+      const imgs = Array.isArray(r.images) ? r.images : []
+      return { ...r, images: imgs.filter((img) => img.id !== imageId) }
+    })
+    replaceRecords(next)
+    setRecords(next)
+
+    const stillHas = next.some((r) => r.id === recordId && Array.isArray(r.images) && r.images.length)
+    if (!stillHas) {
+      const nextWithImages = next
+        .filter((r) => Array.isArray(r.images) && r.images.length > 0)
+        .slice()
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      setImageManagerActiveRecordId(nextWithImages[0]?.id || '')
+    }
+  }
+
   function buildCsv(rows, headers) {
     const escape = (value) => {
       const v = value == null ? '' : String(value)
@@ -639,6 +806,147 @@ export default function App() {
     const csv = [headerLine, ...dataLines].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     return URL.createObjectURL(blob)
+  }
+
+  function recordToAllRow(r) {
+    return {
+      id: r.id,
+      customerId: r.customerId || '',
+      customerName: r.customerName || '',
+      customerKana: r.customerKana || '',
+      birthday: r.birthday || '',
+      address: r.address || '',
+      visitDate: r.visitDate || '',
+      menuType: r.menuType || '',
+      structureScore: r.structureScore ?? '',
+      lifestyleScore: r.lifestyleScore ?? '',
+      conditionScore: r.conditionScore ?? '',
+      structureRank: r.structureRank ?? '',
+      lifestyleRank: r.lifestyleRank ?? '',
+      conditionRank: r.conditionRank ?? '',
+      imagesCount: Array.isArray(r.images) ? r.images.length : 0,
+      imagesJson: JSON.stringify(Array.isArray(r.images) ? r.images : []),
+      formValuesJson: JSON.stringify(r.formValues || {}),
+      createdAt: r.createdAt || '',
+    }
+  }
+
+  const CSV_HEADERS_ALL = [
+    'id',
+    'customerId',
+    'customerName',
+    'customerKana',
+    'birthday',
+    'address',
+    'visitDate',
+    'menuType',
+    'structureScore',
+    'lifestyleScore',
+    'conditionScore',
+    'structureRank',
+    'lifestyleRank',
+    'conditionRank',
+    'imagesCount',
+    'imagesJson',
+    'formValuesJson',
+    'createdAt',
+  ]
+
+  function handleExportCsvByCustomerIdPrompt() {
+    if (!records.length) {
+      alert('エクスポートできる履歴がありません')
+      return
+    }
+
+    const input = window.prompt('エクスポートしたい顧客IDを入力してください（例: A-00001）', customerId.trim() || '')
+    const targetId = String(input || '').trim()
+    if (!targetId) return
+
+    const subset = records
+      .filter((r) => String(r.customerId || '').trim() === targetId)
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+
+    if (!subset.length) {
+      alert(`顧客ID「${targetId}」の履歴がありません`)
+      return
+    }
+
+    const rows = subset.map(recordToAllRow)
+    const now = new Date()
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
+      now.getDate(),
+    ).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(
+      now.getMinutes(),
+    ).padStart(2, '0')}`
+    const safeId = targetId.replace(/[\\/:*?"<>|]/g, '_')
+    const fileName = `fleur-carte-customer-${safeId}-${ts}.csv`
+
+    const url = buildCsv(rows, CSV_HEADERS_ALL)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setCsvMenuOpen(false)
+  }
+
+  function handleExportCsvByCustomerIdAndDatePrompt() {
+    if (!records.length) {
+      alert('エクスポートできる履歴がありません')
+      return
+    }
+
+    const inputId = window.prompt(
+      'エクスポートしたい顧客IDを入力してください（例: A-00001）',
+      customerId.trim() || '',
+    )
+    const targetId = String(inputId || '').trim()
+    if (!targetId) return
+
+    const inputDate = window.prompt(
+      'エクスポートしたい日付を入力してください（例: 2026-03-11）',
+      visitDate || '',
+    )
+    const targetDate = String(inputDate || '').trim()
+    if (!targetDate) return
+
+    const subset = records
+      .filter(
+        (r) =>
+          String(r.customerId || '').trim() === targetId &&
+          String(r.visitDate || '').trim() === targetDate,
+      )
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+
+    if (!subset.length) {
+      alert(`顧客ID「${targetId}」かつ 日付「${targetDate}」の履歴がありません`)
+      return
+    }
+
+    const rows = subset.map(recordToAllRow)
+    const now = new Date()
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
+      now.getDate(),
+    ).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(
+      now.getMinutes(),
+    ).padStart(2, '0')}`
+    const safeId = targetId.replace(/[\\/:*?"<>|]/g, '_')
+    const safeDate = targetDate.replace(/[\\/:*?"<>|]/g, '_')
+    const fileName = `fleur-carte-customer-${safeId}-date-${safeDate}-${ts}.csv`
+
+    const url = buildCsv(rows, CSV_HEADERS_ALL)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setCsvMenuOpen(false)
   }
 
   function handleExportCsv(mode) {
@@ -724,44 +1032,8 @@ export default function App() {
       rows = records
         .slice()
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .map((r) => ({
-          id: r.id,
-          customerId: r.customerId || '',
-          customerName: r.customerName || '',
-          customerKana: r.customerKana || '',
-          birthday: r.birthday || '',
-          address: r.address || '',
-          visitDate: r.visitDate || '',
-          menuType: r.menuType || '',
-          structureScore: r.structureScore ?? '',
-          lifestyleScore: r.lifestyleScore ?? '',
-          conditionScore: r.conditionScore ?? '',
-          structureRank: r.structureRank ?? '',
-          lifestyleRank: r.lifestyleRank ?? '',
-          conditionRank: r.conditionRank ?? '',
-          imagesCount: Array.isArray(r.images) ? r.images.length : 0,
-          formValuesJson: JSON.stringify(r.formValues || {}),
-          createdAt: r.createdAt || '',
-        }))
-      headers = [
-        'id',
-        'customerId',
-        'customerName',
-        'customerKana',
-        'birthday',
-        'address',
-        'visitDate',
-        'menuType',
-        'structureScore',
-        'lifestyleScore',
-        'conditionScore',
-        'structureRank',
-        'lifestyleRank',
-        'conditionRank',
-        'imagesCount',
-        'formValuesJson',
-        'createdAt',
-      ]
+        .map(recordToAllRow)
+      headers = CSV_HEADERS_ALL
     } else {
       return
     }
@@ -838,6 +1110,16 @@ export default function App() {
         formValues = {}
       }
     }
+
+    let images = []
+    if (row.imagesJson) {
+      try {
+        const parsed = JSON.parse(row.imagesJson)
+        images = Array.isArray(parsed) ? parsed : []
+      } catch {
+        images = []
+      }
+    }
     return {
       id: row.id && String(row.id).trim() ? row.id : createId(),
       customerId: String(row.customerId || '').trim(),
@@ -854,7 +1136,7 @@ export default function App() {
       lifestyleRank: String(row.lifestyleRank || '').trim() || undefined,
       conditionRank: String(row.conditionRank || '').trim() || undefined,
       formValues,
-      images: [],
+      images,
       createdAt: row.createdAt ? Number(row.createdAt) || Date.now() : Date.now(),
     }
   }
@@ -922,14 +1204,14 @@ export default function App() {
                 <button
                   type="button"
                   className="btn small"
-                  onClick={() => handleExportCsv('byCustomer')}
+                  onClick={handleExportCsvByCustomerIdPrompt}
                 >
                   顧客ID毎
                 </button>
                 <button
                   type="button"
                   className="btn small"
-                  onClick={() => handleExportCsv('byCustomerDate')}
+                  onClick={handleExportCsvByCustomerIdAndDatePrompt}
                 >
                   顧客ID+日付毎
                 </button>
@@ -959,6 +1241,37 @@ export default function App() {
           </div>
           <button type="button" className="btn" onClick={handlePdfExport}>
             PDF出力
+          </button>
+          <div className="csvMenuWrap">
+            <button type="button" className="btn" onClick={handleToggleImageToolsMenu}>
+              画像確認/削除
+            </button>
+            {imageToolsMenuOpen && (
+              <div className="csvMenu" style={{ top: '100%', right: 0, left: 'auto', flexDirection: 'column' }}>
+                <button type="button" className="btn small" onClick={handleOpenImageStorageInfo}>
+                  画像の保存場所を表示
+                </button>
+                <button type="button" className="btn small" onClick={handleOpenStorageViewer}>
+                  保存データ（ローカルストレージ）を表示
+                </button>
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() => {
+                    handleCloseImageToolsMenu()
+                    handleOpenImageManager()
+                  }}
+                >
+                  画像の確認/削除
+                </button>
+                <button type="button" className="btn small subtle" onClick={handleCloseImageToolsMenu}>
+                  閉じる
+                </button>
+              </div>
+            )}
+          </div>
+          <button type="button" className="btn" onClick={handleOpenCustomerList}>
+            顧客一覧
           </button>
           <button type="button" className="btn" onClick={handleRefresh}>
             リフレッシュ
@@ -1104,14 +1417,14 @@ export default function App() {
                 {searchedCustomers.length ? (
                   searchedCustomers.map((c) => (
                     <button
-                      key={c.customerId}
+                      key={c.customerKey || c.customerId}
                       type="button"
-                      className={`customerSelectButton ${selectedCustomerId === c.customerId ? 'isActive' : ''}`}
-                      onClick={() => handleSelectCustomer(c.customerId)}
+                      className={`customerSelectButton ${selectedCustomerId === (c.customerKey || c.customerId) ? 'isActive' : ''}`}
+                      onClick={() => handleSelectCustomer(c.customerKey || c.customerId)}
                     >
                       <div className="customerRowTop">
                         <div className="customerName">{c.customerName || '名称未設定'}</div>
-                        <div className="customerId">{c.customerId}</div>
+                        <div className="customerId">{c.customerId || 'IDなし'}</div>
                       </div>
                       <div className="mutedText">{c.customerKana || 'カナ未登録'}</div>
                     </button>
@@ -1243,6 +1556,199 @@ export default function App() {
                 </div>
               ) : (
                 <div className="mutedText">画像を読み込めませんでした。</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {imageManagerOpen && (
+        <div className="imageModalOverlay" onClick={handleCloseImageManager}>
+          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">保存画像の確認 / 削除</div>
+                <div className="imageModalSubtitle">
+                  保存済み画像がある履歴: {recordsWithImages.length}件
+                </div>
+              </div>
+              <button type="button" className="btn small" onClick={handleCloseImageManager}>
+                閉じる
+              </button>
+            </div>
+            <div className="imageManagerBody">
+              <div className="imageManagerSidebar">
+                {recordsWithImages.length ? (
+                  recordsWithImages.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className={`imageManagerItem ${imageManagerActiveRecordId === r.id ? 'isActive' : ''}`}
+                      onClick={() => setImageManagerActiveRecordId(r.id)}
+                    >
+                      <div className="imageManagerItemTop">
+                        <div className="imageManagerItemName">{r.customerName || '名称未設定'}</div>
+                        <div className="imageManagerItemCount">{Array.isArray(r.images) ? r.images.length : 0}枚</div>
+                      </div>
+                      <div className="imageManagerItemSub">
+                        {(r.customerId ? `ID: ${r.customerId}` : 'IDなし') + (r.visitDate ? ` / ${r.visitDate}` : '')}
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="mutedText">保存済み画像がありません。</div>
+                )}
+              </div>
+
+              <div className="imageManagerMain">
+                {activeImageManagerRecord ? (
+                  <>
+                    <div className="imageManagerMainHeader">
+                      <div>
+                        <div className="imageModalTitle">
+                          {activeImageManagerRecord.customerName || '名称未設定'}
+                        </div>
+                        <div className="imageModalSubtitle">
+                          {activeImageManagerRecord.customerId || 'IDなし'} / {activeImageManagerRecord.visitDate || ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="imageModalBody">
+                      {Array.isArray(activeImageManagerRecord.images) && activeImageManagerRecord.images.length ? (
+                        <div className="imageModalGrid">
+                          {activeImageManagerRecord.images.map((img) => (
+                            <div key={img.id} className="imageTile">
+                              <div className="imagePreview">
+                                <img src={img.dataUrl} alt={img.fileName || 'upload'} />
+                              </div>
+                              <div className="imageMeta">
+                                <div className="imageName" title={img.fileName}>
+                                  {img.fileName || 'image'}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn small danger"
+                                  onClick={() => handleDeleteSavedImage(activeImageManagerRecord.id, img.id)}
+                                >
+                                  削除
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mutedText">この履歴には画像がありません。</div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mutedText">左の一覧から履歴を選択してください。</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {customerListOpen && (
+        <div className="imageModalOverlay" onClick={handleCloseCustomerList}>
+          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">顧客一覧</div>
+                <div className="imageModalSubtitle">顧客ID / お客様名（{customerList.length}件）</div>
+              </div>
+              <button type="button" className="btn small" onClick={handleCloseCustomerList}>
+                閉じる
+              </button>
+            </div>
+            <div className="imageModalBody">
+              {customerList.length ? (
+                <div className="customerSelectList">
+                  {[...customerList]
+                    .sort((a, b) => {
+                      const aid = String(a.customerId || '')
+                      const bid = String(b.customerId || '')
+                      if (aid && bid) return aid.localeCompare(bid, 'ja')
+                      if (aid && !bid) return -1
+                      if (!aid && bid) return 1
+                      return String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ja')
+                    })
+                    .map((c) => (
+                      <div key={c.customerKey || c.customerId || c.customerName} className="customerSelectButton">
+                        <div className="customerRowTop">
+                          <div className="customerName">{c.customerName || '名称未設定'}</div>
+                          <div className="customerId">{c.customerId || 'IDなし'}</div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="mutedText">顧客がまだ登録されていません。</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {imageStorageInfoOpen && (
+        <div className="imageModalOverlay" onClick={handleCloseImageStorageInfo}>
+          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">画像の保存場所について</div>
+                <div className="imageModalSubtitle">このアプリで保存している画像の場所</div>
+              </div>
+              <button type="button" className="btn small" onClick={handleCloseImageStorageInfo}>
+                閉じる
+              </button>
+            </div>
+            <div className="imageModalBody">
+              <div className="mutedText" style={{ lineHeight: 1.7 }}>
+                このアプリの画像は、PCのフォルダにファイルとして保存されているわけではありません。ブラウザの保存領域（ローカルストレージ）に保存されています。
+                <br />
+                そのため、ボタンを押して「画像が入っているフォルダを開く」ことはできません。
+                <br />
+                画像の確認や削除は、上のメニューから「画像の確認/削除」をご利用ください。
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {storageViewerOpen && (
+        <div className="imageModalOverlay" onClick={handleCloseStorageViewer}>
+          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">保存データ（ローカルストレージ）</div>
+                <div className="imageModalSubtitle">
+                  key: {storageSnapshot.key} / 履歴 {storageSnapshot.recordCount}件 / 画像 {storageSnapshot.imageCount}枚 / 目安 {bytesToHuman(storageSnapshot.approxBytes)}
+                </div>
+              </div>
+              <button type="button" className="btn small" onClick={handleCloseStorageViewer}>
+                閉じる
+              </button>
+            </div>
+            <div className="imageModalBody">
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                <button type="button" className="btn small" onClick={handleCopyStorageJson}>
+                  JSONをコピー
+                </button>
+                <button type="button" className="btn small" onClick={handleDownloadStorageJson}>
+                  JSONをダウンロード
+                </button>
+              </div>
+              {storageSnapshot.raw ? (
+                <textarea
+                  className="textInput"
+                  style={{ minHeight: '260px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+                  readOnly
+                  value={storageSnapshot.raw}
+                />
+              ) : (
+                <div className="mutedText">保存データがありません。</div>
               )}
             </div>
           </div>
