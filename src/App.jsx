@@ -1184,8 +1184,7 @@ export default function App() {
     <div className="appShell">
       <header className="appHeader">
         <div>
-          <div className="appTitle">Fleur Lash カルテ管理</div>
-          <div className="appSubtitle">保存 / 顧客検索 / 履歴 / 比較(最大3件) / 画像 / PDF</div>
+          <div className="appTitle">Fleur Lash</div>
         </div>
         <div className="headerActions">
           <button type="button" className="btn primary" onClick={handleSave}>
