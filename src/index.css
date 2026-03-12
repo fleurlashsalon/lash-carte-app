@@ -120,6 +120,13 @@ textarea {
   align-items: start;
 }
 
+/* iPadなど画面幅が狭い場合は1カラム構成にする */
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .colLeft,
 .colRight {
   display: flex;
