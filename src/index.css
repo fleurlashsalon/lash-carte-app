@@ -315,6 +315,22 @@ textarea {
   opacity: 0.85;
 }
 
+/* 基本情報の一部入力（iPadで干渉しやすい項目）を小さめに */
+.basicInfoGrid .fieldBirthday .textInput,
+.basicInfoGrid .fieldSpan2 .textInput,
+.basicInfoGrid .fieldVisitDate .textInput,
+.basicInfoGrid .fieldMenuType .selectInput {
+  min-height: 40px;
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: 14px;
+}
+
+/* date入力の右端干渉を抑えつつ、全体を小さめに */
+.basicInfoGrid .dateInput {
+  padding-right: 56px;
+}
+
 .textInput::placeholder {
   color: var(--muted-2);
 }
