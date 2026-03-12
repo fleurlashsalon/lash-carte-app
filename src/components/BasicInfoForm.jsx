@@ -9,6 +9,7 @@ export default function BasicInfoForm({
   visitDate,
   menuType,
   onChange,
+  onCustomerNameBlur,
   errors = {},
 }) {
   return (
@@ -22,7 +23,7 @@ export default function BasicInfoForm({
           className={`textInput ${errors.customerId ? 'isError' : ''}`}
           type="text"
           value={customerId}
-          placeholder="例) FL-000123"
+          placeholder="例) A-00001（未入力時は自動採番）"
           onChange={(e) => onChange({ customerId: e.target.value })}
         />
         {errors.customerId ? <div className="errorText">{errors.customerId}</div> : null}
@@ -39,6 +40,7 @@ export default function BasicInfoForm({
           value={customerName}
           placeholder="例) 山田 花子"
           onChange={(e) => onChange({ customerName: e.target.value })}
+          onBlur={() => onCustomerNameBlur?.()}
         />
         {errors.customerName ? <div className="errorText">{errors.customerName}</div> : null}
       </div>

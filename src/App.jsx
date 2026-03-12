@@ -77,6 +77,7 @@ export default function App() {
   const [imageModalRecord, setImageModalRecord] = useState(null)
   const [csvMenuOpen, setCsvMenuOpen] = useState(false)
   const csvInputRef = useRef(null)
+  const customerNameRef = useRef(customerName)
   const HISTORY_PAGE_SIZE = 10
   const [historyPage, setHistoryPage] = useState(1)
 
@@ -86,6 +87,26 @@ export default function App() {
 
   function getCustomerIdFromRecord(rec) {
     return String(rec.customerId || '').trim()
+  }
+
+  /** 顧客ID未入力時用: A-00001, A-00002, ... の次の番号を採番 */
+  function getNextAutoCustomerId() {
+    const used = records
+      .map((r) => String(r.customerId || '').trim())
+      .filter((id) => /^A-\d+$/.test(id))
+    const numbers = used.map((id) => parseInt(id.replace(/^A-/, ''), 10)).filter((n) => !Number.isNaN(n))
+    const next = numbers.length ? Math.max(...numbers) + 1 : 1
+    return `A-${String(next).padStart(5, '0')}`
+  }
+
+  /** お客様名で既存顧客を検索（直近の履歴1件を返す） */
+  function findExistingCustomerByName(name) {
+    const n = String(name || '').trim()
+    if (!n) return null
+    const matches = records.filter((r) => (r.customerName || '').trim() === n)
+    if (!matches.length) return null
+    const sorted = [...matches].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    return sorted[0]
   }
 
   const menuFlags = useMemo(() => {
@@ -245,7 +266,6 @@ export default function App() {
   function validate() {
     const next = {}
 
-    if (!customerId.trim()) next.customerId = '顧客IDを入力してください'
     if (!customerName.trim()) next.customerName = 'お客様名を入力してください'
 
     const id = customerId.trim()
@@ -269,13 +289,27 @@ export default function App() {
   async function handleSave() {
     if (!validate()) return
 
+    let effectiveCustomerId = customerId.trim()
+    if (!effectiveCustomerId && customerName.trim()) {
+      const existing = findExistingCustomerByName(customerName)
+      if (existing) {
+        const msg = `お客様名「${customerName.trim()}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま新規登録（新しい顧客IDを採番）`
+        if (window.confirm(msg)) {
+          handleLoadBasicInfoOnly(existing)
+          return
+        }
+      }
+      effectiveCustomerId = getNextAutoCustomerId()
+      setCustomerId(effectiveCustomerId)
+    }
+
     // 毎回新しい履歴として保存する（過去履歴を上書きしない）
     const id = createId()
     const createdAt = Date.now()
 
     const record = {
       id,
-      customerId: customerId.trim(),
+      customerId: effectiveCustomerId,
       customerName: customerName.trim(),
       customerKana: customerKana?.trim?.() || '',
       birthday: birthday || '',
@@ -511,6 +545,22 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  /** 登録済み同名ポップアップでYESのとき：基本情報のみ反映（スコア・ラジオ・画像は反映しない） */
+  function handleLoadBasicInfoOnly(rec) {
+    setCustomerId(rec.customerId || '')
+    setCustomerName(rec.customerName || '')
+    setCustomerKana(rec.customerKana || '')
+    setBirthday(rec.birthday || '')
+    setAddress(rec.address || '')
+    setVisitDate(rec.visitDate || getTodayString())
+    setMenuType(rec.menuType || '')
+    setFormValues(INITIAL_FORM)
+    setImages([])
+    setErrors({})
+    setSelectedCustomerId(getCustomerIdFromRecord(rec))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   function handleDelete(id) {
     const next = deleteRecord(id)
     setRecords(next)
@@ -524,6 +574,36 @@ export default function App() {
     setSelectedCustomerId(customerIdValue)
     setCompareIds([])
   }
+
+  /** お客様名の入力が離れたとき、登録済み同名なら読み込み確認 */
+  function handleCustomerNameBlur() {
+    const name = customerName.trim()
+    if (!name) return
+    const existing = findExistingCustomerByName(name)
+    if (!existing) return
+    if (currentId === existing.id) return
+    const msg = `お客様名「${name}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま入力続行（新規登録）`
+    if (window.confirm(msg)) {
+      handleLoadBasicInfoOnly(existing)
+    }
+  }
+
+  /** お客様名を入力した時点で、登録済み同名ならポップアップ（3ms デバウンス） */
+  customerNameRef.current = customerName
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const name = customerNameRef.current.trim()
+      if (!name) return
+      const existing = findExistingCustomerByName(name)
+      if (!existing) return
+      if (currentId === existing.id) return
+      const msg = `お客様名「${name}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま入力続行（新規登録）`
+      if (window.confirm(msg)) {
+        handleLoadBasicInfoOnly(existing)
+      }
+    }, 3)
+    return () => clearTimeout(id)
+  }, [customerName, records, currentId])
 
   function handleToggleCompare(id) {
     setCompareIds((prev) => {
@@ -898,6 +978,7 @@ export default function App() {
               visitDate={visitDate}
               menuType={menuType}
               onChange={updateBasicInfo}
+              onCustomerNameBlur={handleCustomerNameBlur}
               errors={errors}
             />
           </SectionCard>
