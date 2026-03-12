@@ -955,12 +955,6 @@ textarea {
   .fieldSpan2 {
     grid-column: span 2;
   }
-
-  /* 日付と施術メニューがくっつきやすいので、ここだけ2列分に広げる */
-  .basicInfoGrid .fieldVisitDate,
-  .basicInfoGrid .fieldMenuType {
-    grid-column: span 2;
-  }
 }
 
 @media (max-width: 720px) {
