@@ -1018,3 +1018,19 @@ textarea {
     max-height: 240px;
   }
 }
+
+/* 強制: 基本情報の生年月日/住所/日付/施術メニューを小さく（iPadで干渉しないように） */
+.basicInfoGrid #birthday,
+.basicInfoGrid #address,
+.basicInfoGrid #visitDate,
+.basicInfoGrid #menuType {
+  min-height: 36px !important;
+  padding: 8px 10px !important;
+  font-size: 12px !important;
+  border-radius: 12px !important;
+}
+
+.basicInfoGrid #birthday,
+.basicInfoGrid #visitDate {
+  padding-right: 58px !important;
+}
