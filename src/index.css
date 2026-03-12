@@ -306,9 +306,13 @@ textarea {
     background 0.14s ease;
 }
 
-/* iPadのdate入力は右端が欠けやすいので余白を確保 */
-input[type='date'].textInput {
-  padding-right: 44px;
+/* iPadのdate入力は右端が詰まりやすいので余白を強めに確保 */
+.dateInput {
+  padding-right: 64px;
+}
+
+.dateInput::-webkit-calendar-picker-indicator {
+  opacity: 0.85;
 }
 
 .textInput::placeholder {
@@ -933,6 +937,12 @@ input[type='date'].textInput {
   }
 
   .fieldSpan2 {
+    grid-column: span 2;
+  }
+
+  /* 日付と施術メニューがくっつきやすいので、ここだけ2列分に広げる */
+  .basicInfoGrid .fieldVisitDate,
+  .basicInfoGrid .fieldMenuType {
     grid-column: span 2;
   }
 }
