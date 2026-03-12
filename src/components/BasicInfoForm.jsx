@@ -13,7 +13,7 @@ export default function BasicInfoForm({
   errors = {},
 }) {
   return (
-    <div className="grid3 basicInfoGrid">
+    <div className="grid3">
       <div className="field">
         <label className="inputLabel" htmlFor="customerId">
           顧客ID
@@ -60,13 +60,13 @@ export default function BasicInfoForm({
         {errors.customerKana ? <div className="errorText">{errors.customerKana}</div> : null}
       </div>
 
-      <div className="field fieldBirthday">
+      <div className="field">
         <label className="inputLabel" htmlFor="birthday">
           生年月日
         </label>
         <input
           id="birthday"
-          className={`textInput dateInput ${errors.birthday ? 'isError' : ''}`}
+          className={`textInput ${errors.birthday ? 'isError' : ''}`}
           type="date"
           value={birthday}
           onChange={(e) => onChange({ birthday: e.target.value })}
@@ -89,13 +89,13 @@ export default function BasicInfoForm({
         {errors.address ? <div className="errorText">{errors.address}</div> : null}
       </div>
 
-      <div className="field fieldVisitDate">
+      <div className="field">
         <label className="inputLabel" htmlFor="visitDate">
           日付
         </label>
         <input
           id="visitDate"
-          className={`textInput dateInput ${errors.visitDate ? 'isError' : ''}`}
+          className={`textInput ${errors.visitDate ? 'isError' : ''}`}
           type="date"
           value={visitDate}
           onChange={(e) => onChange({ visitDate: e.target.value })}
@@ -103,7 +103,7 @@ export default function BasicInfoForm({
         {errors.visitDate ? <div className="errorText">{errors.visitDate}</div> : null}
       </div>
 
-      <div className="field fieldMenuType">
+      <div className="field">
         <label className="inputLabel" htmlFor="menuType">
           施術メニュー
         </label>

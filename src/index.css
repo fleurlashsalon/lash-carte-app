@@ -306,31 +306,6 @@ textarea {
     background 0.14s ease;
 }
 
-/* iPadのdate入力は右端が詰まりやすいので余白を強めに確保 */
-.dateInput {
-  padding-right: 64px;
-}
-
-.dateInput::-webkit-calendar-picker-indicator {
-  opacity: 0.85;
-}
-
-/* 基本情報の一部入力（iPadで干渉しやすい項目）を小さめに */
-.basicInfoGrid .fieldBirthday .textInput,
-.basicInfoGrid .fieldSpan2 .textInput,
-.basicInfoGrid .fieldVisitDate .textInput,
-.basicInfoGrid .fieldMenuType .selectInput {
-  min-height: 40px;
-  padding: 10px 12px;
-  font-size: 13px;
-  border-radius: 14px;
-}
-
-/* date入力の右端干渉を抑えつつ、全体を小さめに */
-.basicInfoGrid .dateInput {
-  padding-right: 56px;
-}
-
 .textInput::placeholder {
   color: var(--muted-2);
 }
@@ -930,33 +905,6 @@ textarea {
   color: #475569 !important;
 }
 
-@media (max-width: 980px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .grid3 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-  }
-
-  .fieldSpan2 {
-    grid-column: span 2;
-  }
-}
-
-/* iPad(1024px)付近でも詰まりやすいので、少し広めの範囲で2列にする */
-@media (max-width: 1100px) {
-  .grid3 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-  }
-
-  .fieldSpan2 {
-    grid-column: span 2;
-  }
-}
-
 @media (max-width: 720px) {
   .appShell {
     padding: 14px 12px 24px;
@@ -1011,32 +959,4 @@ textarea {
     border-bottom: 1px solid rgba(92, 72, 84, 0.10);
     max-height: 240px;
   }
-}
-
-/* 強制: 基本情報の生年月日/住所/日付/施術メニューを小さく（iPadで干渉しないように） */
-.basicInfoGrid #birthday,
-.basicInfoGrid #address,
-.basicInfoGrid #menuType {
-  min-height: 36px !important;
-  padding: 8px 10px !important;
-  font-size: 12px !important;
-  border-radius: 12px !important;
-}
-
-/* 生年月日は「お客様名」と同じサイズにする（右端の欠け対策だけ追加） */
-.basicInfoGrid #birthday {
-  min-height: 46px !important;
-  padding: 12px 13px !important;
-  padding-right: 58px !important;
-  font-size: 14px !important;
-  border-radius: 16px !important;
-}
-
-/* 日付は「氏名（カナ）」と同じサイズにする（ただし右端は欠けないように調整） */
-.basicInfoGrid #visitDate {
-  min-height: 46px !important;
-  padding: 12px 13px !important;
-  padding-right: 58px !important;
-  font-size: 14px !important;
-  border-radius: 16px !important;
 }
