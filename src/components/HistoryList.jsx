@@ -1,3 +1,32 @@
+import { BLOCK_LABELS, getFieldLabel } from '../utils/treatmentFormDefs.js'
+
+function formatDetailValue(v) {
+  if (v === undefined || v === null) return ''
+  if (Array.isArray(v)) return v.length ? v.join('・') : ''
+  return String(v)
+}
+
+function renderBlockDetails(blockId, data) {
+  if (!data || typeof data !== 'object') return null
+  const entries = Object.entries(data).filter(
+    ([, v]) => v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true),
+  )
+  if (!entries.length) return null
+  const title = BLOCK_LABELS[blockId] || blockId
+  return (
+    <div key={blockId} className="historyTreatmentBlock">
+      <div className="historyTreatmentBlockTitle">{title}</div>
+      <div className="historyTreatmentBlockFields">
+        {entries.map(([k, v]) => (
+          <span key={k} className="historyTreatmentItem">
+            {getFieldLabel(blockId, k)}: {formatDetailValue(v)}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function HistoryList({
   records,
   onLoad,
@@ -15,6 +44,11 @@ export default function HistoryList({
       {records.map((rec) => {
         const checked = compareIds.includes(rec.id)
         const hasImages = Array.isArray(rec.images) && rec.images.length > 0
+        const td = rec.treatmentDetails
+        const hasExt = td?.ext && Object.keys(td.ext).length > 0
+        const hasPerm = td?.perm && Object.keys(td.perm).length > 0
+        const hasBrow = td?.browWax && Object.keys(td.browWax).length > 0
+        const hasAnyTreatmentDetails = hasExt || hasPerm || hasBrow
 
         return (
           <div key={rec.id} className="historyCard">
@@ -33,11 +67,11 @@ export default function HistoryList({
                 {rec.birthday ? <span className="mutedChip">生年月日: {rec.birthday}</span> : null}
               </div>
 
-              {rec.treatmentDetails && ((rec.treatmentDetails.ext && Object.keys(rec.treatmentDetails.ext).length > 0) || (rec.treatmentDetails.perm && Object.keys(rec.treatmentDetails.perm).length > 0) || (rec.treatmentDetails.browWax && Object.keys(rec.treatmentDetails.browWax).length > 0)) ? (
-                <div className="historyTreatmentSummary">
-                  {rec.treatmentDetails.ext && Object.keys(rec.treatmentDetails.ext).length > 0 ? <span className="mutedChip">エクステ詳細</span> : null}
-                  {rec.treatmentDetails.perm && Object.keys(rec.treatmentDetails.perm).length > 0 ? <span className="mutedChip">まつ毛パーマ詳細</span> : null}
-                  {rec.treatmentDetails.browWax && Object.keys(rec.treatmentDetails.browWax).length > 0 ? <span className="mutedChip">眉毛ワックス詳細</span> : null}
+              {hasAnyTreatmentDetails ? (
+                <div className="historyTreatmentDetails">
+                  {renderBlockDetails('ext', td?.ext)}
+                  {renderBlockDetails('perm', td?.perm)}
+                  {renderBlockDetails('browWax', td?.browWax)}
                 </div>
               ) : null}
 

@@ -392,6 +392,40 @@ textarea {
   margin-top: 6px;
 }
 
+.historyTreatmentDetails {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+}
+
+.historyTreatmentBlock {
+  margin-bottom: 6px;
+}
+.historyTreatmentBlock:last-child {
+  margin-bottom: 0;
+}
+
+.historyTreatmentBlockTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.historyTreatmentBlockFields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.historyTreatmentItem {
+  white-space: nowrap;
+}
+
 .compareTreatmentDetails {
   padding: 10px;
   border: 1px solid var(--border);
@@ -769,6 +803,22 @@ textarea {
   flex-direction: column;
   gap: 10px;
   align-items: flex-end;
+}
+
+/* 履歴カード内の比較チェックは .btn.small と同程度のサイズに・横書きを維持 */
+.historyActions .checkPill {
+  padding: 6px 10px;
+  font-size: 12px;
+  gap: 6px;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+.historyActions .checkPill input {
+  width: 16px;
+  height: 16px;
+}
+.historyActions .checkPill span {
+  white-space: nowrap;
 }
 
 .imageField {
