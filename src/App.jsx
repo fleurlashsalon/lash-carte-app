@@ -84,6 +84,7 @@ export default function App() {
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [compareIds, setCompareIds] = useState([])
   const [imageModalRecord, setImageModalRecord] = useState(null)
+  const [memoModalRecord, setMemoModalRecord] = useState(null)
   const [imageManagerOpen, setImageManagerOpen] = useState(false)
   const [imageManagerActiveRecordId, setImageManagerActiveRecordId] = useState('')
   const [imageToolsMenuOpen, setImageToolsMenuOpen] = useState(false)
@@ -91,8 +92,11 @@ export default function App() {
   const [storageViewerOpen, setStorageViewerOpen] = useState(false)
   const [customerListOpen, setCustomerListOpen] = useState(false)
   const [csvMenuOpen, setCsvMenuOpen] = useState(false)
+  const [showSaveToast, setShowSaveToast] = useState(false)
+  const saveToastTimerRef = useRef(null)
   const csvInputRef = useRef(null)
   const customerNameRef = useRef(customerName)
+  const suppressExistingNamePopupRef = useRef(false)
   const HISTORY_PAGE_SIZE = 10
   const [historyPage, setHistoryPage] = useState(1)
 
@@ -381,8 +385,16 @@ export default function App() {
     setCurrentCreatedAt(createdAt)
     setSelectedCustomerId(record.customerId)
 
+    // 画面上部に保存完了トーストを表示
+    setShowSaveToast(true)
+    if (saveToastTimerRef.current) {
+      clearTimeout(saveToastTimerRef.current)
+    }
+    saveToastTimerRef.current = setTimeout(() => {
+      setShowSaveToast(false)
+    }, 2500)
+
     if (!isGoogleConfigured()) {
-      alert('ローカル保存が完了しました（Google保存は未設定です）')
       return
     }
 
@@ -583,6 +595,8 @@ export default function App() {
   }
 
   function handleLoad(rec) {
+    // 履歴から再表示する間は、既存お客様名ポップアップを抑制する
+    suppressExistingNamePopupRef.current = true
     setCustomerId(rec.customerId || '')
     setCustomerName(rec.customerName || '')
     setCustomerKana(rec.customerKana || '')
@@ -606,6 +620,10 @@ export default function App() {
     setSelectedCustomerId(cid || (rec.customerName ? `NOID:${String(rec.customerName).trim()}` : ''))
     setCompareIds([])
     window.scrollTo({ top: 0, behavior: 'smooth' })
+    // 少し待ってからポップアップを再度有効化
+    setTimeout(() => {
+      suppressExistingNamePopupRef.current = false
+    }, 50)
   }
 
   /** 登録済み同名ポップアップでYESのとき：基本情報のみ反映（スコア・ラジオ・画像は反映しない） */
@@ -645,6 +663,7 @@ export default function App() {
   function handleCustomerNameBlur() {
     const name = customerName.trim()
     if (!name) return
+    if (suppressExistingNamePopupRef.current) return
     const existing = findExistingCustomerByName(name)
     if (!existing) return
     if (currentId === existing.id) return
@@ -658,6 +677,7 @@ export default function App() {
   customerNameRef.current = customerName
   useEffect(() => {
     const id = setTimeout(() => {
+      if (suppressExistingNamePopupRef.current) return
       const name = customerNameRef.current.trim()
       if (!name) return
       const existing = findExistingCustomerByName(name)
@@ -692,6 +712,14 @@ export default function App() {
 
   function handleCloseImages() {
     setImageModalRecord(null)
+  }
+
+  function handleOpenMemo(rec) {
+    setMemoModalRecord(rec)
+  }
+
+  function handleCloseMemo() {
+    setMemoModalRecord(null)
   }
 
   const recordsWithImages = useMemo(() => {
@@ -1253,6 +1281,11 @@ export default function App() {
 
   return (
     <div className="appShell">
+      {showSaveToast && (
+        <div className="saveToast">
+          <span>保存しました</span>
+        </div>
+      )}
       <header className="appHeader">
         <div>
           <div className="appTitle">Fleur Lash</div>
@@ -1543,7 +1576,8 @@ export default function App() {
               onDelete={handleDelete}
               compareIds={compareIds}
               onToggleCompare={handleToggleCompare}
-                onOpenImages={handleOpenImages}
+              onOpenImages={handleOpenImages}
+              onOpenMemo={handleOpenMemo}
             />
             {visibleRecords.length > HISTORY_PAGE_SIZE && (
               <div className="historyPagination">
@@ -1684,6 +1718,36 @@ export default function App() {
               ) : (
                 <div className="mutedText">画像を読み込めませんでした。</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {memoModalRecord && (
+        <div className="imageModalOverlay" onClick={handleCloseMemo}>
+          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">{memoModalRecord.customerName || '名称未設定'}</div>
+                <div className="imageModalSubtitle">
+                  {memoModalRecord.customerId || ''} / {memoModalRecord.visitDate || ''}
+                </div>
+              </div>
+              <button type="button" className="btn small" onClick={handleCloseMemo}>
+                閉じる
+              </button>
+            </div>
+            <div className="imageModalBody">
+              <textarea
+                className="textInput"
+                style={{ minHeight: '200px' }}
+                readOnly
+                value={
+                  memoModalRecord.formValues && typeof memoModalRecord.formValues.memo === 'string'
+                    ? memoModalRecord.formValues.memo
+                    : ''
+                }
+              />
             </div>
           </div>
         </div>

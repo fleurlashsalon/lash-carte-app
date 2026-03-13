@@ -34,6 +34,7 @@ export default function HistoryList({
   compareIds = [],
   onToggleCompare,
   onOpenImages,
+  onOpenMemo,
 }) {
   if (!records.length) {
     return <div className="mutedText">該当する履歴がありません。</div>
@@ -44,6 +45,11 @@ export default function HistoryList({
       {records.map((rec) => {
         const checked = compareIds.includes(rec.id)
         const hasImages = Array.isArray(rec.images) && rec.images.length > 0
+        const memoText =
+          rec.formValues && typeof rec.formValues.memo === 'string'
+            ? rec.formValues.memo.trim()
+            : ''
+        const hasMemo = Boolean(memoText)
         const td = rec.treatmentDetails
         const hasExt = td?.ext && Object.keys(td.ext).length > 0
         const hasPerm = td?.perm && Object.keys(td.perm).length > 0
@@ -98,6 +104,12 @@ export default function HistoryList({
               {hasImages && (
                 <button type="button" className="btn small" onClick={() => onOpenImages?.(rec)}>
                   画像有
+                </button>
+              )}
+
+              {hasMemo && (
+                <button type="button" className="btn small" onClick={() => onOpenMemo?.(rec)}>
+                  メモ有
                 </button>
               )}
 

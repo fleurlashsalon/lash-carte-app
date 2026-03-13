@@ -197,6 +197,28 @@ textarea {
   z-index: 10;
 }
 
+/* 保存完了トースト */
+.saveToast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: linear-gradient(135deg, #8f6f9e 0%, #d8a49a 100%);
+  color: #fffdfb;
+  padding: 10px 18px;
+  border-radius: 999px;
+  box-shadow: 0 16px 30px rgba(84, 58, 73, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 900;
+}
+.saveToast span {
+  white-space: nowrap;
+}
+
 .btn {
   border: 1px solid var(--border);
   background: rgba(255, 252, 249, 0.9);
