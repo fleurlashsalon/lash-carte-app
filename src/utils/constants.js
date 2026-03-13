@@ -23,6 +23,23 @@ export const PERM_MENUS = [
   'ケラチンパーマ',
 ]
 
+// 施術メニューごと動的フォーム用：エクステ詳細を含むメニュー
+export const NEW_EXTENSION_MENUS = [
+  'エクステ',
+  '&Healthy',
+  'ExLift',
+  'エクステ×眉毛ワックス',
+  'エクステワックス',
+]
+// 施術メニューごと動的フォーム用：まつ毛パーマ詳細を含むメニュー
+export const NEW_PERM_MENUS = [
+  'まつ毛パーマ',
+  '&Healthy',
+  'ExLift',
+  'まつ毛パーマ×眉毛ワックス',
+  'まつ毛パーマワックス',
+]
+
 export const STRUCTURE_QUESTIONS = [
   {
     key: 'eyeShape',

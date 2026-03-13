@@ -354,6 +354,81 @@ textarea {
   gap: 12px;
 }
 
+/* 施術メニュー別詳細フォーム（定義ベース） */
+.treatmentDetailBlock {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+.treatmentDetailBlockTitle {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.treatmentDetailFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.treatmentDetailFields .field {
+  min-width: 0;
+}
+.checkboxGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.historyTreatmentSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.compareTreatmentDetails {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.treatmentCompareBlock {
+  margin-bottom: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.treatmentCompareBlock:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.treatmentCompareHeader {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.treatmentCompareSection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.treatmentCompareItem {
+  color: var(--text);
+}
+
 .fieldRow {
   display: grid;
   grid-template-columns: 160px 1fr;

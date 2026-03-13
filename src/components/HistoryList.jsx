@@ -29,9 +29,17 @@ export default function HistoryList({
 
               <div className="historyMeta">
                 {rec.customerId ? <span className="mutedChip">ID: {rec.customerId}</span> : null}
-                <span className="pill">{rec.menuType || '未選択'}</span>
+                <span className="pill">{rec.treatmentMenu || rec.menuType || '未選択'}</span>
                 {rec.birthday ? <span className="mutedChip">生年月日: {rec.birthday}</span> : null}
               </div>
+
+              {rec.treatmentDetails && ((rec.treatmentDetails.ext && Object.keys(rec.treatmentDetails.ext).length > 0) || (rec.treatmentDetails.perm && Object.keys(rec.treatmentDetails.perm).length > 0) || (rec.treatmentDetails.browWax && Object.keys(rec.treatmentDetails.browWax).length > 0)) ? (
+                <div className="historyTreatmentSummary">
+                  {rec.treatmentDetails.ext && Object.keys(rec.treatmentDetails.ext).length > 0 ? <span className="mutedChip">エクステ詳細</span> : null}
+                  {rec.treatmentDetails.perm && Object.keys(rec.treatmentDetails.perm).length > 0 ? <span className="mutedChip">まつ毛パーマ詳細</span> : null}
+                  {rec.treatmentDetails.browWax && Object.keys(rec.treatmentDetails.browWax).length > 0 ? <span className="mutedChip">眉毛ワックス詳細</span> : null}
+                </div>
+              ) : null}
 
               <div className="scoreLine">
                 <span>構造 {rec.structureScore ?? 0}</span>

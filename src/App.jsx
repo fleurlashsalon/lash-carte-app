@@ -3,6 +3,7 @@ import { toPng } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 import SectionCard from './components/SectionCard.jsx'
 import BasicInfoForm from './components/BasicInfoForm.jsx'
+import TreatmentDetailForm from './components/TreatmentDetailForm.jsx'
 import HorizontalRadioGroup from './components/HorizontalRadioGroup.jsx'
 import ScoreSummary from './components/ScoreSummary.jsx'
 import RadarScoreChart from './components/RadarScoreChart.jsx'
@@ -15,6 +16,7 @@ import {
   WORK_ENV_EXTENSIONS,
   WORK_ENV_PERM,
 } from './utils/constants.js'
+import { MENU_DETAIL_BLOCKS, isNewTreatmentMenu, getFieldLabel } from './utils/treatmentFormDefs.js'
 import { createId, getTodayString, isExtensionMenu, isPermMenu } from './utils/helpers.js'
 import {
   getConditionRank,
@@ -66,6 +68,12 @@ export default function App() {
   const [address, setAddress] = useState('')
   const [visitDate, setVisitDate] = useState(getTodayString())
   const [menuType, setMenuType] = useState('')
+  const [phone, setPhone] = useState('')
+  const [treatmentDetails, setTreatmentDetails] = useState({
+    ext: {},
+    perm: {},
+    browWax: {},
+  })
   const [formValues, setFormValues] = useState(INITIAL_FORM)
   const [images, setImages] = useState([])
   const [errors, setErrors] = useState({})
@@ -248,7 +256,7 @@ export default function App() {
   const compareSeries = useMemo(() => {
     return compareRecords.slice(0, 3).map((rec, index) => ({
       key: `series_${index}`,
-      name: `${rec.visitDate || '日付未設定'} / ${rec.menuType || '未選択'}`,
+      name: `${rec.visitDate || '日付未設定'} / ${rec.treatmentMenu || rec.menuType || '未選択'}`,
     }))
   }, [compareRecords])
 
@@ -259,7 +267,10 @@ export default function App() {
     if (Object.prototype.hasOwnProperty.call(patch, 'birthday')) setBirthday(patch.birthday)
     if (Object.prototype.hasOwnProperty.call(patch, 'address')) setAddress(patch.address)
     if (Object.prototype.hasOwnProperty.call(patch, 'visitDate')) setVisitDate(patch.visitDate)
-
+    if (Object.prototype.hasOwnProperty.call(patch, 'phone')) setPhone(patch.phone)
+    if (Object.prototype.hasOwnProperty.call(patch, 'treatmentMenu')) {
+      setMenuType(patch.treatmentMenu)
+    }
     if (Object.prototype.hasOwnProperty.call(patch, 'menuType')) {
       const nextMenu = patch.menuType
       const prevIsPerm = isPermMenu(menuType)
@@ -282,6 +293,16 @@ export default function App() {
     }))
   }
 
+  function handleTreatmentDetailChange(blockId, fieldId, value) {
+    setTreatmentDetails((prev) => ({
+      ...prev,
+      [blockId]: {
+        ...(prev[blockId] || {}),
+        [fieldId]: value,
+      },
+    }))
+  }
+
   function setAnswer(key, value) {
     setFormValues((prev) => ({ ...prev, [key]: value }))
   }
@@ -290,6 +311,7 @@ export default function App() {
     const next = {}
 
     if (!customerName.trim()) next.customerName = 'お客様名を入力してください'
+    if (!menuType) next.treatmentMenu = '施術メニューを選択してください'
 
     const id = customerId.trim()
     const name = customerName.trim()
@@ -335,10 +357,13 @@ export default function App() {
       customerId: effectiveCustomerId,
       customerName: customerName.trim(),
       customerKana: customerKana?.trim?.() || '',
+      phone: phone?.trim?.() || '',
       birthday: birthday || '',
       address: address?.trim?.() || '',
       visitDate: visitDate || '',
       menuType: menuType || '',
+      treatmentMenu: menuType || '',
+      treatmentDetails: treatmentDetails || { ext: {}, perm: {}, browWax: {} },
       formValues,
       structureScore,
       structureRank,
@@ -387,10 +412,13 @@ export default function App() {
           customerId: record.customerId,
           customerName: record.customerName,
           customerKana: record.customerKana,
+          phone: record.phone,
           birthday: record.birthday,
           address: record.address,
           visitDate: record.visitDate,
           menuType: record.menuType,
+          treatmentMenu: record.treatmentMenu,
+          treatmentDetails: record.treatmentDetails,
           formValues,
           imagesCount: (record.images || []).length,
         },
@@ -443,6 +471,8 @@ export default function App() {
       doc.text(`氏名: ${customerName || ''}`, 14, y)
       y += 7
       doc.text(`氏名（カナ）: ${customerKana || ''}`, 14, y)
+      y += 7
+      doc.text(`電話番号: ${phone || ''}`, 14, y)
       y += 7
       doc.text(`生年月日: ${birthday || ''}`, 14, y)
       y += 7
@@ -537,10 +567,12 @@ export default function App() {
     setCustomerId('')
     setCustomerName('')
     setCustomerKana('')
+    setPhone('')
     setBirthday('')
     setAddress('')
     setVisitDate(getTodayString())
     setMenuType('')
+    setTreatmentDetails({ ext: {}, perm: {}, browWax: {} })
     setFormValues(INITIAL_FORM)
     setImages([])
     setErrors({})
@@ -554,10 +586,17 @@ export default function App() {
     setCustomerId(rec.customerId || '')
     setCustomerName(rec.customerName || '')
     setCustomerKana(rec.customerKana || '')
+    setPhone(rec.phone || '')
     setBirthday(rec.birthday || '')
     setAddress(rec.address || '')
     setVisitDate(rec.visitDate || getTodayString())
-    setMenuType(rec.menuType || '')
+    setMenuType(rec.treatmentMenu || rec.menuType || '')
+    const td = rec.treatmentDetails
+    setTreatmentDetails({
+      ext: td?.ext && typeof td.ext === 'object' ? td.ext : {},
+      perm: td?.perm && typeof td.perm === 'object' ? td.perm : {},
+      browWax: td?.browWax && typeof td.browWax === 'object' ? td.browWax : {},
+    })
     setFormValues({ ...INITIAL_FORM, ...(rec.formValues || {}) })
     setImages(Array.isArray(rec.images) ? rec.images : [])
     setErrors({})
@@ -574,10 +613,12 @@ export default function App() {
     setCustomerId(rec.customerId || '')
     setCustomerName(rec.customerName || '')
     setCustomerKana(rec.customerKana || '')
+    setPhone(rec.phone || '')
     setBirthday(rec.birthday || '')
     setAddress(rec.address || '')
     setVisitDate(rec.visitDate || getTodayString())
-    setMenuType(rec.menuType || '')
+    setMenuType(rec.treatmentMenu || rec.menuType || '')
+    setTreatmentDetails({ ext: {}, perm: {}, browWax: {} })
     setFormValues(INITIAL_FORM)
     setImages([])
     setErrors({})
@@ -815,10 +856,13 @@ export default function App() {
       customerId: r.customerId || '',
       customerName: r.customerName || '',
       customerKana: r.customerKana || '',
+      phone: r.phone || '',
       birthday: r.birthday || '',
       address: r.address || '',
       visitDate: r.visitDate || '',
-      menuType: r.menuType || '',
+      menuType: r.menuType || r.treatmentMenu || '',
+      treatmentMenu: r.treatmentMenu || r.menuType || '',
+      treatmentDetailsJson: JSON.stringify(r.treatmentDetails || {}),
       structureScore: r.structureScore ?? '',
       lifestyleScore: r.lifestyleScore ?? '',
       conditionScore: r.conditionScore ?? '',
@@ -837,10 +881,13 @@ export default function App() {
     'customerId',
     'customerName',
     'customerKana',
+    'phone',
     'birthday',
     'address',
     'visitDate',
     'menuType',
+    'treatmentMenu',
+    'treatmentDetailsJson',
     'structureScore',
     'lifestyleScore',
     'conditionScore',
@@ -1121,15 +1168,34 @@ export default function App() {
         images = []
       }
     }
+    let treatmentDetails = { ext: {}, perm: {}, browWax: {} }
+    if (row.treatmentDetailsJson) {
+      try {
+        const parsed = JSON.parse(row.treatmentDetailsJson)
+        if (parsed && typeof parsed === 'object') {
+          treatmentDetails = {
+            ext: parsed.ext && typeof parsed.ext === 'object' ? parsed.ext : {},
+            perm: parsed.perm && typeof parsed.perm === 'object' ? parsed.perm : {},
+            browWax: parsed.browWax && typeof parsed.browWax === 'object' ? parsed.browWax : {},
+          }
+        }
+      } catch {
+        treatmentDetails = { ext: {}, perm: {}, browWax: {} }
+      }
+    }
+
     return {
       id: row.id && String(row.id).trim() ? row.id : createId(),
       customerId: String(row.customerId || '').trim(),
       customerName: String(row.customerName || '').trim(),
       customerKana: String(row.customerKana || '').trim(),
+      phone: String(row.phone || '').trim(),
       birthday: String(row.birthday || '').trim(),
       address: String(row.address || '').trim(),
       visitDate: String(row.visitDate || '').trim(),
-      menuType: String(row.menuType || '').trim(),
+      menuType: String(row.menuType || row.treatmentMenu || '').trim(),
+      treatmentMenu: String(row.treatmentMenu || row.menuType || '').trim(),
+      treatmentDetails,
       structureScore: num(row.structureScore) ?? 0,
       lifestyleScore: num(row.lifestyleScore) ?? 0,
       conditionScore: num(row.conditionScore) ?? 0,
@@ -1281,15 +1347,14 @@ export default function App() {
 
       <main className="layout">
         <div className="colLeft">
-          <SectionCard title="基本情報" subtitle="保存必須: 顧客ID・お客様名（それ以外は未入力でもOK）">
+          <SectionCard title="基本情報" subtitle="必須: 顧客ID・お客様名・施術メニュー">
             <BasicInfoForm
               customerId={customerId}
               customerName={customerName}
               customerKana={customerKana}
-              birthday={birthday}
-              address={address}
+              phone={phone}
+              treatmentMenu={menuType}
               visitDate={visitDate}
-              menuType={menuType}
               onChange={updateBasicInfo}
               onCustomerNameBlur={handleCustomerNameBlur}
               errors={errors}
@@ -1408,6 +1473,19 @@ export default function App() {
             />
           </SectionCard>
 
+          {isNewTreatmentMenu(menuType) && MENU_DETAIL_BLOCKS[menuType] ? (
+            <SectionCard title="施術メニュー詳細" subtitle="メニューに応じた項目を入力">
+              {(MENU_DETAIL_BLOCKS[menuType] || []).map((blockId) => (
+                <TreatmentDetailForm
+                  key={blockId}
+                  blockId={blockId}
+                  values={treatmentDetails[blockId] || {}}
+                  onChange={handleTreatmentDetailChange}
+                />
+              ))}
+            </SectionCard>
+          ) : null}
+
           <SectionCard title="顧客検索" subtitle="顧客ID優先 / 氏名・カナも検索できます">
             <div className="field">
               <input
@@ -1511,13 +1589,47 @@ export default function App() {
                     {compareRecords.slice(0, 3).map((rec) => (
                       <div key={rec.id} className="scoreLine">
                         <span>{rec.visitDate || '日付未設定'}</span>
-                        <span>{rec.menuType || 'メニュー未選択'}</span>
+                        <span>{rec.treatmentMenu || rec.menuType || 'メニュー未選択'}</span>
                         <span>構造 {rec.structureScore ?? 0} ({rec.structureRank ?? '-'})</span>
                         <span>生活 {rec.lifestyleScore ?? 0} ({rec.lifestyleRank ?? '-'})</span>
                         <span>状態 {rec.conditionScore ?? 0} ({rec.conditionRank ?? '-'})</span>
                       </div>
                     ))}
                   </div>
+                  {compareRecords.some((r) => r.treatmentDetails && ((r.treatmentDetails.ext && Object.keys(r.treatmentDetails.ext).length > 0) || (r.treatmentDetails.perm && Object.keys(r.treatmentDetails.perm).length > 0) || (r.treatmentDetails.browWax && Object.keys(r.treatmentDetails.browWax).length > 0))) ? (
+                    <div className="compareTreatmentDetails" style={{ marginTop: '12px' }}>
+                      <div className="inputLabel" style={{ marginBottom: '6px' }}>施術メニュー詳細（比較）</div>
+                      {compareRecords.slice(0, 3).map((rec) => (
+                        <div key={rec.id} className="treatmentCompareBlock">
+                          <div className="treatmentCompareHeader">{rec.visitDate || '-'} / {rec.treatmentMenu || rec.menuType || '-'}</div>
+                          {rec.treatmentDetails?.ext && Object.keys(rec.treatmentDetails.ext).length > 0 ? (
+                            <div className="treatmentCompareSection">
+                              <span className="mutedChip">エクステ:</span>
+                              {Object.entries(rec.treatmentDetails.ext).filter(([, v]) => v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true)).map(([k, v]) => (
+                                <span key={k} className="treatmentCompareItem">{getFieldLabel('ext', k)}: {Array.isArray(v) ? v.join(', ') : String(v)}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {rec.treatmentDetails?.perm && Object.keys(rec.treatmentDetails.perm).length > 0 ? (
+                            <div className="treatmentCompareSection">
+                              <span className="mutedChip">まつ毛パーマ:</span>
+                              {Object.entries(rec.treatmentDetails.perm).filter(([, v]) => v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true)).map(([k, v]) => (
+                                <span key={k} className="treatmentCompareItem">{getFieldLabel('perm', k)}: {Array.isArray(v) ? v.join(', ') : String(v)}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {rec.treatmentDetails?.browWax && Object.keys(rec.treatmentDetails.browWax).length > 0 ? (
+                            <div className="treatmentCompareSection">
+                              <span className="mutedChip">眉毛ワックス:</span>
+                              {Object.entries(rec.treatmentDetails.browWax).filter(([, v]) => v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true)).map(([k, v]) => (
+                                <span key={k} className="treatmentCompareItem">{getFieldLabel('browWax', k)}: {Array.isArray(v) ? v.join(', ') : String(v)}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="mutedText">比較したい履歴を1〜3件選択してください。</div>

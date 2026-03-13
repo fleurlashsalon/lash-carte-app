@@ -1,17 +1,27 @@
-import { MENU_OPTIONS } from '../utils/constants.js'
+import { TREATMENT_MENU_OPTIONS } from '../utils/treatmentFormDefs.js'
 
+/**
+ * 基本情報フォーム
+ * 必須: 顧客ID, お客様名, 施術メニュー
+ * 任意: 氏名（カナ）, 電話番号, 施術日（後方互換用）
+ */
 export default function BasicInfoForm({
   customerId,
   customerName,
   customerKana,
-  birthday,
-  address,
+  phone,
+  treatmentMenu,
   visitDate,
-  menuType,
   onChange,
   onCustomerNameBlur,
   errors = {},
 }) {
+  // 後方互換: 既存データのメニューが新リストにない場合は先頭に追加して表示
+  const menuOptions =
+    treatmentMenu && !TREATMENT_MENU_OPTIONS.some((o) => o.value === treatmentMenu)
+      ? [{ value: treatmentMenu, label: treatmentMenu }, ...TREATMENT_MENU_OPTIONS]
+      : TREATMENT_MENU_OPTIONS
+
   return (
     <div className="grid3">
       <div className="field">
@@ -61,66 +71,51 @@ export default function BasicInfoForm({
       </div>
 
       <div className="field">
-        <label className="inputLabel" htmlFor="birthday">
-          生年月日
-        </label>
-        <input
-          id="birthday"
-          className={`textInput ${errors.birthday ? 'isError' : ''}`}
-          type="date"
-          value={birthday}
-          onChange={(e) => onChange({ birthday: e.target.value })}
-        />
-        {errors.birthday ? <div className="errorText">{errors.birthday}</div> : null}
-      </div>
-
-      <div className="field fieldSpan2">
-        <label className="inputLabel" htmlFor="address">
-          住所
-        </label>
-        <input
-          id="address"
-          className={`textInput ${errors.address ? 'isError' : ''}`}
-          type="text"
-          value={address}
-          placeholder="例) 兵庫県尼崎市..."
-          onChange={(e) => onChange({ address: e.target.value })}
-        />
-        {errors.address ? <div className="errorText">{errors.address}</div> : null}
-      </div>
-
-      <div className="field">
-        <label className="inputLabel" htmlFor="visitDate">
-          日付
-        </label>
-        <input
-          id="visitDate"
-          className={`textInput ${errors.visitDate ? 'isError' : ''}`}
-          type="date"
-          value={visitDate}
-          onChange={(e) => onChange({ visitDate: e.target.value })}
-        />
-        {errors.visitDate ? <div className="errorText">{errors.visitDate}</div> : null}
-      </div>
-
-      <div className="field">
-        <label className="inputLabel" htmlFor="menuType">
+        <label className="inputLabel" htmlFor="treatmentMenu">
           施術メニュー
         </label>
         <select
-          id="menuType"
-          className={`selectInput ${errors.menuType ? 'isError' : ''}`}
-          value={menuType}
-          onChange={(e) => onChange({ menuType: e.target.value })}
+          id="treatmentMenu"
+          className={`selectInput ${errors.treatmentMenu ? 'isError' : ''}`}
+          value={treatmentMenu}
+          onChange={(e) => onChange({ treatmentMenu: e.target.value })}
         >
           <option value="">未選択</option>
-          {MENU_OPTIONS.map((menu) => (
+          {menuOptions.map((menu) => (
             <option key={menu.value} value={menu.value}>
               {menu.label}
             </option>
           ))}
         </select>
-        {errors.menuType ? <div className="errorText">{errors.menuType}</div> : null}
+        {errors.treatmentMenu ? <div className="errorText">{errors.treatmentMenu}</div> : null}
+      </div>
+
+      <div className="field">
+        <label className="inputLabel" htmlFor="phone">
+          電話番号
+        </label>
+        <input
+          id="phone"
+          className={`textInput ${errors.phone ? 'isError' : ''}`}
+          type="tel"
+          value={phone}
+          placeholder="例) 090-1234-5678"
+          onChange={(e) => onChange({ phone: e.target.value })}
+        />
+        {errors.phone ? <div className="errorText">{errors.phone}</div> : null}
+      </div>
+
+      <div className="field">
+        <label className="inputLabel" htmlFor="visitDate">
+          施術日（任意）
+        </label>
+        <input
+          id="visitDate"
+          className="textInput"
+          type="date"
+          value={visitDate}
+          onChange={(e) => onChange({ visitDate: e.target.value })}
+        />
       </div>
     </div>
   )

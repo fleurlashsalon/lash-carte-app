@@ -1,11 +1,11 @@
-import { EXTENSION_MENUS, PERM_MENUS } from './constants.js'
+import { EXTENSION_MENUS, PERM_MENUS, NEW_EXTENSION_MENUS, NEW_PERM_MENUS } from './constants.js'
 
 export function isPermMenu(menuType) {
-  return PERM_MENUS.includes(menuType)
+  return PERM_MENUS.includes(menuType) || (NEW_PERM_MENUS && NEW_PERM_MENUS.includes(menuType))
 }
 
 export function isExtensionMenu(menuType) {
-  return EXTENSION_MENUS.includes(menuType)
+  return EXTENSION_MENUS.includes(menuType) || (NEW_EXTENSION_MENUS && NEW_EXTENSION_MENUS.includes(menuType))
 }
 
 export function getTodayString() {
