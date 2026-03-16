@@ -2,10 +2,24 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- 通常ブラウザ用アイコン -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <!-- iPad / iPhone ホーム画面アイコン -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- iPadでアプリ表示 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="FLスコア" />
+
+    <!-- 表示設定 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>カルテスコア可視化</title>
   </head>
+
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
