@@ -136,6 +136,22 @@ export default function App() {
     return `A-${String(next).padStart(5, '0')}`
   }
 
+  /** 直近に登録された顧客ID（重複除外、最大5件） */
+  function getRecentCustomerIds(limit = 5) {
+    const sorted = [...records].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    const seen = new Set()
+    const out = []
+    for (const r of sorted) {
+      const id = String(r?.customerId || '').trim()
+      if (!id) continue
+      if (seen.has(id)) continue
+      seen.add(id)
+      out.push(id)
+      if (out.length >= limit) break
+    }
+    return out
+  }
+
   /** お客様名で既存顧客を検索（直近の履歴1件を返す） */
   function findExistingCustomerByName(name) {
     const n = String(name || '').trim()
@@ -480,6 +496,23 @@ export default function App() {
     saveToastTimerRef.current = setTimeout(() => {
       setShowSaveToast(false)
     }, 2500)
+
+    // 保存後は「基本情報」をリフレッシュ（履歴表示の選択中顧客は維持）
+    setCustomerId('')
+    setCustomerName('')
+    setCustomerKana('')
+    setPhone('')
+    setBirthday('')
+    setAddress('')
+    setVisitDate(getTodayString())
+    setMenuType('')
+    setTreatmentDetails({ ext: {}, perm: {}, browWax: {} })
+    setFormValues(INITIAL_FORM)
+    setImages([])
+    setErrors({})
+    setCurrentId(null)
+    setCurrentCreatedAt(null)
+    setCompareIds([])
 
     if (!isGoogleConfigured()) {
       return
@@ -2350,7 +2383,9 @@ export default function App() {
             <div className="imageModalHeader">
               <div>
                 <div className="imageModalTitle">顧客検索</div>
-                <div className="imageModalSubtitle">顧客ID / お客様名 / 氏名（カナ） / 電話番号で検索</div>
+                <div className="imageModalSubtitle">
+                  直近の顧客ID（過去5件）：{getRecentCustomerIds(5).length ? getRecentCustomerIds(5).join(' / ') : 'なし'}
+                </div>
               </div>
               <button type="button" className="btn small" onClick={handleCloseCustomerList}>
                 閉じる
