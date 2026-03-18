@@ -37,7 +37,7 @@ import {
   saveRecord,
   saveToGoogle,
 } from './utils/storage.js'
-import { exportScoreSheetCsv } from './utils/csvExport.js'
+import { buildCsv, exportScoreSheetCsv } from './utils/csvExport.js'
 import { loadJapaneseFont } from './utils/pdfFont.js'
 
 const INITIAL_FORM = {
@@ -101,6 +101,10 @@ export default function App() {
   })
   const [customerSearchResults, setCustomerSearchResults] = useState([])
   const [customerSearchRan, setCustomerSearchRan] = useState(false)
+  const [csvRangeOpen, setCsvRangeOpen] = useState(false)
+  const [csvRangeFrom, setCsvRangeFrom] = useState('')
+  const [csvRangeTo, setCsvRangeTo] = useState('')
+  const [csvRangeBusy, setCsvRangeBusy] = useState(false)
   const [customerListOpen, setCustomerListOpen] = useState(false)
   const [csvMenuOpen, setCsvMenuOpen] = useState(false)
   const [showSaveToast, setShowSaveToast] = useState(false)
@@ -1325,6 +1329,77 @@ export default function App() {
     setCsvMenuOpen(false)
   }
 
+  async function exportCsvDateRangeAsZip({ from, to }) {
+    const sourceRecords = records
+    if (!sourceRecords.length) {
+      alert('エクスポートできる履歴がありません')
+      return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      alert('日付形式が正しくありません（YYYY-MM-DD）')
+      return
+    }
+    if (from > to) {
+      alert('開始日が終了日より後になっています')
+      return
+    }
+
+    // Pickerはユーザー操作直後に呼ぶ必要があるため、先に保存先を確定
+    if (window.top !== window.self) {
+      alert('この画面（プレビュー/埋め込み表示）では保存先の指定ができません。外部ブラウザで開いてからお試しください。')
+      return
+    }
+    if (typeof window.showSaveFilePicker !== 'function') {
+      alert('このブラウザでは保存先の指定に対応していません。Edge / Chrome の通常ブラウザでお試しください。')
+      return
+    }
+
+    const now = new Date()
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(
+      now.getHours(),
+    ).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+    const zipName = `fleur-carte-csv-${from}-to-${to}-${ts}.zip`
+
+    const handle = await window.showSaveFilePicker({
+      suggestedName: zipName,
+      types: [
+        {
+          description: 'ZIP',
+          accept: { 'application/zip': ['.zip'] },
+        },
+      ],
+    })
+    if (!handle) return
+
+    const subset = sourceRecords
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .filter((r) => {
+        const d = getRecordDateForExport(r)
+        if (!d) return false
+        return d >= from && d <= to
+      })
+
+    if (!subset.length) {
+      alert(`期間「${from}〜${to}」の履歴がありません`)
+      return
+    }
+
+    const rows = subset.map(recordToAllRow)
+    const csv = buildCsv(rows, CSV_HEADERS_ALL)
+    const csvContent = String(csv ?? '')
+    const csvBlob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+
+    const { default: JSZip } = await import('jszip')
+    const zip = new JSZip()
+    zip.file(`fleur-carte-${from}-to-${to}.csv`, csvBlob)
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+
+    const writable = await handle.createWritable()
+    await writable.write(zipBlob)
+    await writable.close()
+  }
+
   function handleExportCsv(mode) {
     // 画面で使用している保存データ（records state）と参照先を統一
     const sourceRecords = records
@@ -1611,7 +1686,12 @@ export default function App() {
                 <button
                   type="button"
                   className="btn small"
-                  onClick={handleExportCsvByDateRangePrompt}
+                  onClick={() => {
+                    setCsvMenuOpen(false)
+                    setCsvRangeOpen(true)
+                    setCsvRangeFrom('')
+                    setCsvRangeTo('')
+                  }}
                 >
                   期間出力
                 </button>
@@ -2280,6 +2360,63 @@ export default function App() {
               ) : (
                 <div className="mutedText">検索条件を入力して「検索」を押してください。</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {csvRangeOpen && (
+        <div className="imageModalOverlay" onClick={() => setCsvRangeOpen(false)}>
+          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">CSV 期間出力（ZIP）</div>
+                <div className="imageModalSubtitle">期間内の履歴をCSVにしてZIPで保存します</div>
+              </div>
+              <button type="button" className="btn small" onClick={() => setCsvRangeOpen(false)} disabled={csvRangeBusy}>
+                閉じる
+              </button>
+            </div>
+            <div className="imageModalBody">
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div className="field" style={{ minWidth: 180 }}>
+                  <label className="inputLabel">開始日</label>
+                  <input
+                    type="date"
+                    className="textInput"
+                    value={csvRangeFrom}
+                    onChange={(e) => setCsvRangeFrom(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ minWidth: 180 }}>
+                  <label className="inputLabel">終了日</label>
+                  <input
+                    type="date"
+                    className="textInput"
+                    value={csvRangeTo}
+                    onChange={(e) => setCsvRangeTo(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={csvRangeBusy}
+                  onClick={async () => {
+                    try {
+                      setCsvRangeBusy(true)
+                      await exportCsvDateRangeAsZip({ from: csvRangeFrom, to: csvRangeTo })
+                      setCsvRangeOpen(false)
+                    } catch (e) {
+                      console.error(e)
+                      alert('保存に失敗しました')
+                    } finally {
+                      setCsvRangeBusy(false)
+                    }
+                  }}
+                >
+                  保存先を指定してZIP保存
+                </button>
+              </div>
             </div>
           </div>
         </div>
