@@ -67,6 +67,22 @@ export function replaceRecords(records) {
   return next
 }
 
+/** 保存データ（履歴/画像含む）を全削除 */
+export function clearAllRecords() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch (e) {
+    console.error('clearAllRecords error:', e)
+  }
+  // 次回以降のnull参照防止
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+  } catch {
+    // ignore
+  }
+  return []
+}
+
 async function postToGoogle(payload) {
   if (!isGoogleConfigured()) {
     throw new Error('GOOGLE_SCRIPT_URL が未設定です')

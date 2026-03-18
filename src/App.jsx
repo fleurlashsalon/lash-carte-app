@@ -28,6 +28,7 @@ import {
   normalizeScore,
 } from './utils/scoring.js'
 import {
+  clearAllRecords,
   deleteRecord,
   forceResetPinToDefault,
   getRecords,
@@ -112,6 +113,7 @@ export default function App() {
   const csvInputRef = useRef(null)
   const customerNameRef = useRef(customerName)
   const suppressExistingNamePopupRef = useRef(false)
+  const lastAutoLoadedCustomerIdRef = useRef('')
   const HISTORY_PAGE_SIZE = 10
   const [historyPage, setHistoryPage] = useState(1)
 
@@ -191,6 +193,66 @@ export default function App() {
 
     return Array.from(map.values())
   }, [records])
+
+  // 顧客IDが既に登録済みなら、登録されている基本情報を自動反映
+  useEffect(() => {
+    const id = String(customerId || '').trim()
+    if (!id) {
+      lastAutoLoadedCustomerIdRef.current = ''
+      return
+    }
+
+    const timer = setTimeout(() => {
+      // 同じIDでの再反映を抑制（入力中のチラつき防止）
+      if (lastAutoLoadedCustomerIdRef.current === id) return
+
+      const hit = records
+        .slice()
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .find((r) => getCustomerIdFromRecord(r) === id)
+      if (!hit) return
+
+      lastAutoLoadedCustomerIdRef.current = id
+      suppressExistingNamePopupRef.current = true
+
+      setCustomerName(hit.customerName || '')
+      setCustomerKana(hit.customerKana || '')
+      setPhone(hit.phone || '')
+      setBirthday(hit.birthday || '')
+      setAddress(hit.address || '')
+      setSelectedCustomerId(id)
+      setCompareIds([])
+
+      setTimeout(() => {
+        suppressExistingNamePopupRef.current = false
+      }, 50)
+    }, 200)
+
+    return () => clearTimeout(timer)
+  }, [customerId, records])
+
+  // 基本情報の入力（顧客ID / お客様名）に合わせて、履歴一覧の表示対象を自動で切り替える
+  useEffect(() => {
+    const id = String(customerId || '').trim()
+    const name = String(customerName || '').trim()
+
+    // 顧客IDがあれば最優先でそのIDの履歴を表示
+    if (id) {
+      setSelectedCustomerId(id)
+      setCompareIds([])
+      return
+    }
+
+    // 顧客IDが空で、お客様名が既存と完全一致する場合はその顧客の履歴を表示
+    if (name) {
+      const existing = findExistingCustomerByName(name)
+      if (existing) {
+        const cid = getCustomerIdFromRecord(existing)
+        setSelectedCustomerId(cid || `NOID:${name}`)
+        setCompareIds([])
+      }
+    }
+  }, [customerId, customerName, records])
 
   // 検索テキストが顧客IDと完全一致している場合のみ、そのIDをマッチとして扱う
   const matchedCustomerId = useMemo(() => {
@@ -619,6 +681,19 @@ export default function App() {
     setCompareIds([])
   }
 
+  function handleDeleteAllData() {
+    const ok = window.confirm('全てのデータが削除されますがよろしいですか？\n（登録したお客様情報・画像・履歴が全て消えます）')
+    if (!ok) return
+    clearAllRecords()
+    setRecords([])
+    setImageManagerActiveRecordId('')
+    setImageManagerOpen(false)
+    setCustomerListOpen(false)
+    setCsvMenuOpen(false)
+    setCsvRangeOpen(false)
+    handleRefresh()
+  }
+
   function handleLoad(rec) {
     // 履歴から再表示する間は、既存お客様名ポップアップを抑制する
     suppressExistingNamePopupRef.current = true
@@ -914,7 +989,6 @@ export default function App() {
         return null
       }
       if (typeof window.showSaveFilePicker !== 'function') {
-        alert('このブラウザでは保存先の指定に対応していません（通常ダウンロードで保存してください）')
         return null
       }
       const accept =
@@ -930,18 +1004,31 @@ export default function App() {
     }
   }
 
-  async function saveImagesAsZipWithPicker(items, zipName) {
-    // Chromeは「ユーザー操作直後」にPickerを呼ばないとブロックされるため、先に保存先を確定する
-    const handle = await pickSaveHandle({
-      suggestedName: zipName,
-      mime: 'application/zip',
-      extensions: ['.zip'],
-    })
-    if (!handle) {
-      alert('この環境ではZIPの保存先指定ができません。Edge / Chrome の通常ブラウザで開いてお試しください。')
-      return false
+  async function saveBlobToUser({ blob, fileName, mime, extensions }) {
+    // 1) File System Access API（対応ブラウザ: Chrome/Edge など）
+    const handle = await pickSaveHandle({ suggestedName: fileName, mime, extensions })
+    if (handle) {
+      await writeBlobToFileHandle(handle, blob)
+      return true
     }
 
+    // 2) iOS/iPadOS など: 共有シートで「ファイルに保存」
+    try {
+      const f = new File([blob], fileName, { type: mime || 'application/octet-stream' })
+      if (navigator.canShare && navigator.canShare({ files: [f] }) && navigator.share) {
+        await navigator.share({ files: [f], title: fileName })
+        return true
+      }
+    } catch (e) {
+      console.warn(e)
+    }
+
+    // 3) 最後の手段: 通常ダウンロード（iPadでは「ダウンロード」から保存可能）
+    downloadBlob(fileName, blob)
+    return true
+  }
+
+  async function saveImagesAsZipWithPicker(items, zipName) {
     const { default: JSZip } = await import('jszip')
     const zip = new JSZip()
 
@@ -955,7 +1042,12 @@ export default function App() {
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' })
-    await writeBlobToFileHandle(handle, zipBlob)
+    await saveBlobToUser({
+      blob: zipBlob,
+      fileName: zipName,
+      mime: 'application/zip',
+      extensions: ['.zip'],
+    })
     return true
   }
 
@@ -972,22 +1064,14 @@ export default function App() {
       const fileName = buildImageFileName(rec, img, index)
       const ext = getImageExt(img)
       const mime = ext === 'png' ? 'image/png' : 'image/jpeg'
-      const handle = await pickSaveHandle({
-        suggestedName: fileName,
+      const blob = await dataUrlToBlob(img?.dataUrl)
+      if (!blob) return
+      await saveBlobToUser({
+        blob,
+        fileName,
         mime,
         extensions: [`.${ext}`],
       })
-      if (handle) {
-        const blob = await dataUrlToBlob(img?.dataUrl)
-        if (!blob) return
-        await writeBlobToFileHandle(handle, blob)
-        return
-      }
-
-      // 未対応環境は通常ダウンロード
-      const blob = await dataUrlToBlob(img?.dataUrl)
-      if (!blob) return
-      downloadBlob(fileName, blob)
     } catch (e) {
       console.error(e)
       alert('保存に失敗しました')
@@ -1344,32 +1428,11 @@ export default function App() {
       return
     }
 
-    // Pickerはユーザー操作直後に呼ぶ必要があるため、先に保存先を確定
-    if (window.top !== window.self) {
-      alert('この画面（プレビュー/埋め込み表示）では保存先の指定ができません。外部ブラウザで開いてからお試しください。')
-      return
-    }
-    if (typeof window.showSaveFilePicker !== 'function') {
-      alert('このブラウザでは保存先の指定に対応していません。Edge / Chrome の通常ブラウザでお試しください。')
-      return
-    }
-
     const now = new Date()
     const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(
       now.getHours(),
     ).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
     const zipName = `fleur-carte-csv-${from}-to-${to}-${ts}.zip`
-
-    const handle = await window.showSaveFilePicker({
-      suggestedName: zipName,
-      types: [
-        {
-          description: 'ZIP',
-          accept: { 'application/zip': ['.zip'] },
-        },
-      ],
-    })
-    if (!handle) return
 
     const subset = sourceRecords
       .slice()
@@ -1394,10 +1457,12 @@ export default function App() {
     const zip = new JSZip()
     zip.file(`fleur-carte-${from}-to-${to}.csv`, csvBlob)
     const zipBlob = await zip.generateAsync({ type: 'blob' })
-
-    const writable = await handle.createWritable()
-    await writable.write(zipBlob)
-    await writable.close()
+    await saveBlobToUser({
+      blob: zipBlob,
+      fileName: zipName,
+      mime: 'application/zip',
+      extensions: ['.zip'],
+    })
   }
 
   function handleExportCsv(mode) {
@@ -1674,12 +1739,37 @@ export default function App() {
             保存
           </button>
           <div className="csvMenuWrap">
+            <button type="button" className="btn" onClick={handleToggleImageToolsMenu}>
+              画像確認/削除
+            </button>
+            {imageToolsMenuOpen && (
+              <div className="csvMenu" style={{ top: '100%', right: 0, left: 'auto', flexDirection: 'column' }}>
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() => {
+                    handleCloseImageToolsMenu()
+                    handleOpenImageManager()
+                  }}
+                >
+                  画像の確認/削除
+                </button>
+                <button type="button" className="btn small subtle" onClick={handleCloseImageToolsMenu}>
+                  閉じる
+                </button>
+              </div>
+            )}
+          </div>
+          <button type="button" className="btn" onClick={handleOpenCustomerList}>
+            顧客一覧
+          </button>
+          <div className="csvMenuWrap">
             <button
               type="button"
               className="btn"
               onClick={() => setCsvMenuOpen((o) => !o)}
             >
-              CSV
+              CSV出力
             </button>
             {csvMenuOpen && (
               <div className="csvMenu">
@@ -1736,33 +1826,11 @@ export default function App() {
           <button type="button" className="btn" onClick={handlePdfExport}>
             PDF出力
           </button>
-          <div className="csvMenuWrap">
-            <button type="button" className="btn" onClick={handleToggleImageToolsMenu}>
-              画像確認/削除
-            </button>
-            {imageToolsMenuOpen && (
-              <div className="csvMenu" style={{ top: '100%', right: 0, left: 'auto', flexDirection: 'column' }}>
-                <button
-                  type="button"
-                  className="btn small"
-                  onClick={() => {
-                    handleCloseImageToolsMenu()
-                    handleOpenImageManager()
-                  }}
-                >
-                  画像の確認/削除
-                </button>
-                <button type="button" className="btn small subtle" onClick={handleCloseImageToolsMenu}>
-                  閉じる
-                </button>
-              </div>
-            )}
-          </div>
-          <button type="button" className="btn" onClick={handleOpenCustomerList}>
-            顧客一覧
-          </button>
           <button type="button" className="btn" onClick={handleRefresh}>
             リフレッシュ
+          </button>
+          <button type="button" className="btn danger" onClick={handleDeleteAllData}>
+            データ削除
           </button>
         </div>
       </header>

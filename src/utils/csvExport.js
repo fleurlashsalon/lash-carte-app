@@ -64,7 +64,6 @@ async function pickSaveHandleCsv(suggestedName) {
       return null
     }
     if (typeof window.showSaveFilePicker !== 'function') {
-      alert('このブラウザでは保存先の指定に対応していません。Edge / Chrome の通常ブラウザでお試しください。')
       return null
     }
     return await window.showSaveFilePicker({
@@ -103,11 +102,23 @@ export function exportScoreSheetCsv({ rows, headers, fileName }) {
   const content = String(csv ?? '')
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' }) // UTF-8 BOM付き
 
-  // 保存先指定（対応環境のみ）。未対応ならダウンロードにフォールバックせず中止する。
+  // 1) 保存先指定（対応環境） 2) 共有シート 3) 通常ダウンロード の順でフォールバック
   pickSaveHandleCsv(fileName)
-    .then((handle) => {
-      if (!handle) return
-      return writeBlobToFileHandle(handle, blob)
+    .then(async (handle) => {
+      if (handle) {
+        await writeBlobToFileHandle(handle, blob)
+        return
+      }
+      try {
+        const f = new File([blob], fileName, { type: 'text/csv;charset=utf-8;' })
+        if (navigator.canShare && navigator.canShare({ files: [f] }) && navigator.share) {
+          await navigator.share({ files: [f], title: fileName })
+          return
+        }
+      } catch (e) {
+        console.warn(e)
+      }
+      downloadCsv(fileName, content)
     })
     .catch((e) => {
       console.error(e)
