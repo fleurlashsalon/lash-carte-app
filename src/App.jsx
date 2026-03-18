@@ -29,6 +29,7 @@ import {
 } from './utils/scoring.js'
 import {
   deleteRecord,
+  forceResetPinToDefault,
   getRecords,
   isGoogleConfigured,
   replaceRecords,
@@ -37,6 +38,7 @@ import {
   saveToGoogle,
 } from './utils/storage.js'
 import { loadJapaneseFont } from './utils/pdfFont.js'
+import { supabase } from './lib/supabaseClient'
 
 const INITIAL_FORM = {
   eyeShape: undefined,
@@ -101,8 +103,31 @@ export default function App() {
   const [historyPage, setHistoryPage] = useState(1)
 
   useEffect(() => {
+    forceResetPinToDefault() // パスワードを強制的に 0000 に戻す
     setRecords(getRecords())
   }, [])
+
+  useEffect(() => {
+    const testSupabaseConnection = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession()
+
+        console.log('Supabase接続テスト')
+        console.log('data:', data)
+        console.log('error:', error)
+      } catch (e) {
+        console.error('Supabase接続テスト失敗:', e)
+      }
+    }
+
+    testSupabaseConnection()
+  }, [])
+
+  function getCustomerIdFromRecord(rec) {
+    return String(rec.customerId || '').trim()
+  }
+
+  // この下は既存コードのまま
 
   function getCustomerIdFromRecord(rec) {
     return String(rec.customerId || '').trim()
@@ -874,8 +899,19 @@ export default function App() {
     const headerLine = headers.map(escape).join(',')
     const dataLines = rows.map((row) => headers.map((h) => escape(row[h])).join(','))
     const csv = [headerLine, ...dataLines].join('\r\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    return URL.createObjectURL(blob)
+    return new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  }
+
+  function downloadBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    // クリック直後にrevokeすると環境によって0バイトになるため、少し遅延させる
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500)
   }
 
   function recordToAllRow(r) {
@@ -958,14 +994,8 @@ export default function App() {
     const safeId = targetId.replace(/[\\/:*?"<>|]/g, '_')
     const fileName = `fleur-carte-customer-${safeId}-${ts}.csv`
 
-    const url = buildCsv(rows, CSV_HEADERS_ALL)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const blob = buildCsv(rows, CSV_HEADERS_ALL)
+    downloadBlob(blob, fileName)
     setCsvMenuOpen(false)
   }
 
@@ -1014,14 +1044,8 @@ export default function App() {
     const safeDate = targetDate.replace(/[\\/:*?"<>|]/g, '_')
     const fileName = `fleur-carte-customer-${safeId}-date-${safeDate}-${ts}.csv`
 
-    const url = buildCsv(rows, CSV_HEADERS_ALL)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const blob = buildCsv(rows, CSV_HEADERS_ALL)
+    downloadBlob(blob, fileName)
     setCsvMenuOpen(false)
   }
 
@@ -1118,14 +1142,8 @@ export default function App() {
       return
     }
 
-    const url = buildCsv(rows, headers)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const blob = buildCsv(rows, headers)
+    downloadBlob(blob, fileName)
     setCsvMenuOpen(false)
   }
 

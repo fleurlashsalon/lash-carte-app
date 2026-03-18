@@ -1,4 +1,15 @@
 const STORAGE_KEY = 'lash-score-records'
+const PIN_STORAGE_KEY = 'lash-score-pin'
+
+/** アプリのPIN（パスワード）を強制的に 0000 に戻す */
+export function forceResetPinToDefault() {
+  localStorage.setItem(PIN_STORAGE_KEY, '0000')
+}
+
+/** 保存されているPINを取得（未設定時は 0000） */
+export function getAppPin() {
+  return localStorage.getItem(PIN_STORAGE_KEY) || '0000'
+}
 
 // TODO: 後でご自身の Apps Script /exec URL に差し替えてください
 export const GOOGLE_SCRIPT_URL = 'REPLACE_WITH_YOUR_APPS_SCRIPT_EXEC_URL'
