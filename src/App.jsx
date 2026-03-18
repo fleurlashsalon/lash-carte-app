@@ -640,6 +640,8 @@ export default function App() {
 
   /** 登録済み同名ポップアップでYESのとき：基本情報のみ反映（スコア・ラジオ・画像は反映しない） */
   function handleLoadBasicInfoOnly(rec) {
+    // 読み込み直後の連続ポップアップを抑止
+    suppressExistingNamePopupRef.current = true
     setCustomerId(rec.customerId || '')
     setCustomerName(rec.customerName || '')
     setCustomerKana(rec.customerKana || '')
@@ -655,6 +657,10 @@ export default function App() {
     const cid = getCustomerIdFromRecord(rec)
     setSelectedCustomerId(cid || (rec.customerName ? `NOID:${String(rec.customerName).trim()}` : ''))
     window.scrollTo({ top: 0, behavior: 'smooth' })
+
+    setTimeout(() => {
+      suppressExistingNamePopupRef.current = false
+    }, 50)
   }
 
   function handleDelete(id) {
@@ -720,8 +726,15 @@ export default function App() {
     if (!existing) return
     if (currentId === existing.id) return
     const msg = `お客様名「${name}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま入力続行（新規登録）`
-    if (window.confirm(msg)) {
+    const ok = window.confirm(msg)
+    if (ok) {
       handleLoadBasicInfoOnly(existing)
+      return
+    }
+    // キャンセル=新規登録続行：既存IDが入っている場合は解除して修正できるようにする
+    if (String(customerId || '').trim() && String(customerId || '').trim() === String(existing.customerId || '').trim()) {
+      setCustomerId('')
+      setSelectedCustomerId('')
     }
   }
 
@@ -736,8 +749,14 @@ export default function App() {
       if (!existing) return
       if (currentId === existing.id) return
       const msg = `お客様名「${name}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま入力続行（新規登録）`
-      if (window.confirm(msg)) {
+      const ok = window.confirm(msg)
+      if (ok) {
         handleLoadBasicInfoOnly(existing)
+        return
+      }
+      if (String(customerId || '').trim() && String(customerId || '').trim() === String(existing.customerId || '').trim()) {
+        setCustomerId('')
+        setSelectedCustomerId('')
       }
     }, 3)
     return () => clearTimeout(id)
