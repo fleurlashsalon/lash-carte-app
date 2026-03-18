@@ -37,6 +37,7 @@ import {
   saveRecord,
   saveToGoogle,
 } from './utils/storage.js'
+import { exportScoreSheetCsv } from './utils/csvExport.js'
 import { loadJapaneseFont } from './utils/pdfFont.js'
 import { supabase } from './lib/supabaseClient'
 
@@ -890,28 +891,8 @@ export default function App() {
     }
   }
 
-  function buildCsv(rows, headers) {
-    const escape = (value) => {
-      const v = value == null ? '' : String(value)
-      const escaped = v.replace(/"/g, '""')
-      return `"${escaped}"`
-    }
-    const headerLine = headers.map(escape).join(',')
-    const dataLines = rows.map((row) => headers.map((h) => escape(row[h])).join(','))
-    const csv = [headerLine, ...dataLines].join('\r\n')
-    return new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  }
-
-  function downloadBlob(blob, fileName) {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    // クリック直後にrevokeすると環境によって0バイトになるため、少し遅延させる
-    window.setTimeout(() => URL.revokeObjectURL(url), 1500)
+  function exportCsvOrAlert({ rows, headers, fileName }) {
+    return exportScoreSheetCsv({ rows, headers, fileName })
   }
 
   function recordToAllRow(r) {
@@ -965,7 +946,8 @@ export default function App() {
   ]
 
   function handleExportCsvByCustomerIdPrompt() {
-    if (!records.length) {
+    const sourceRecords = records
+    if (!sourceRecords.length) {
       alert('エクスポートできる履歴がありません')
       return
     }
@@ -974,7 +956,7 @@ export default function App() {
     const targetId = String(input || '').trim()
     if (!targetId) return
 
-    const subset = records
+    const subset = sourceRecords
       .filter((r) => String(r.customerId || '').trim() === targetId)
       .slice()
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -994,13 +976,14 @@ export default function App() {
     const safeId = targetId.replace(/[\\/:*?"<>|]/g, '_')
     const fileName = `fleur-carte-customer-${safeId}-${ts}.csv`
 
-    const blob = buildCsv(rows, CSV_HEADERS_ALL)
-    downloadBlob(blob, fileName)
+    const ok = exportCsvOrAlert({ rows, headers: CSV_HEADERS_ALL, fileName })
+    if (!ok) return
     setCsvMenuOpen(false)
   }
 
   function handleExportCsvByCustomerIdAndDatePrompt() {
-    if (!records.length) {
+    const sourceRecords = records
+    if (!sourceRecords.length) {
       alert('エクスポートできる履歴がありません')
       return
     }
@@ -1019,7 +1002,7 @@ export default function App() {
     const targetDate = String(inputDate || '').trim()
     if (!targetDate) return
 
-    const subset = records
+    const subset = sourceRecords
       .filter(
         (r) =>
           String(r.customerId || '').trim() === targetId &&
@@ -1044,14 +1027,16 @@ export default function App() {
     const safeDate = targetDate.replace(/[\\/:*?"<>|]/g, '_')
     const fileName = `fleur-carte-customer-${safeId}-date-${safeDate}-${ts}.csv`
 
-    const blob = buildCsv(rows, CSV_HEADERS_ALL)
-    downloadBlob(blob, fileName)
+    const ok = exportCsvOrAlert({ rows, headers: CSV_HEADERS_ALL, fileName })
+    if (!ok) return
     setCsvMenuOpen(false)
   }
 
   function handleExportCsv(mode) {
-    if (!records.length) {
-      alert('エクスポートできる履歴がありません')
+    // 画面で使用している保存データ（records state）と参照先を統一
+    const sourceRecords = records
+    if (!sourceRecords.length) {
+      alert('出力データがありません')
       return
     }
 
@@ -1067,11 +1052,11 @@ export default function App() {
 
     if (mode === 'byCustomer') {
       const map = new Map()
-      const sorted = [...records].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      const sorted = [...sourceRecords].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       sorted.forEach((r) => {
         const id = r.customerId || ''
         if (!id || map.has(id)) return
-        const count = records.filter((x) => x.customerId === id).length
+        const count = sourceRecords.filter((x) => x.customerId === id).length
         map.set(id, {
           customerId: id,
           customerName: r.customerName || '',
@@ -1101,7 +1086,7 @@ export default function App() {
         'recordCount',
       ]
     } else if (mode === 'byCustomerDate') {
-      rows = records
+      rows = sourceRecords
         .slice()
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
         .map((r) => ({
@@ -1133,7 +1118,7 @@ export default function App() {
         'imagesCount',
       ]
     } else if (mode === 'all') {
-      rows = records
+      rows = sourceRecords
         .slice()
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
         .map(recordToAllRow)
@@ -1142,8 +1127,8 @@ export default function App() {
       return
     }
 
-    const blob = buildCsv(rows, headers)
-    downloadBlob(blob, fileName)
+    const ok = exportCsvOrAlert({ rows, headers, fileName })
+    if (!ok) return
     setCsvMenuOpen(false)
   }
 
