@@ -102,6 +102,8 @@ export default function App() {
   })
   const [customerSearchResults, setCustomerSearchResults] = useState([])
   const [customerSearchRan, setCustomerSearchRan] = useState(false)
+  const [customerListMode, setCustomerListMode] = useState('search') // 'search' | 'list'
+  const [customerListPage, setCustomerListPage] = useState(1)
   const [csvRangeOpen, setCsvRangeOpen] = useState(false)
   const [csvRangeFrom, setCsvRangeFrom] = useState('')
   const [csvRangeTo, setCsvRangeTo] = useState('')
@@ -209,6 +211,28 @@ export default function App() {
 
     return Array.from(map.values())
   }, [records])
+
+  const sortedCustomerList = useMemo(() => {
+    return [...customerList].sort((a, b) => {
+      const aid = String(a.customerId || '')
+      const bid = String(b.customerId || '')
+      if (aid && bid) return aid.localeCompare(bid, 'ja')
+      if (aid && !bid) return -1
+      if (!aid && bid) return 1
+      return String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ja')
+    })
+  }, [customerList])
+
+  const CUSTOMER_LIST_PAGE_SIZE = 15
+  const customerListTotalPages = Math.max(1, Math.ceil(sortedCustomerList.length / CUSTOMER_LIST_PAGE_SIZE))
+  const paginatedCustomerList = useMemo(() => {
+    const start = (customerListPage - 1) * CUSTOMER_LIST_PAGE_SIZE
+    return sortedCustomerList.slice(start, start + CUSTOMER_LIST_PAGE_SIZE)
+  }, [sortedCustomerList, customerListPage])
+
+  useEffect(() => {
+    setCustomerListPage((p) => Math.min(p, customerListTotalPages))
+  }, [customerListTotalPages])
 
   // 顧客IDが既に登録済みなら、登録されている基本情報を自動反映
   useEffect(() => {
@@ -1182,6 +1206,8 @@ export default function App() {
     }))
     setCustomerSearchResults([])
     setCustomerSearchRan(false)
+    setCustomerListMode('search')
+    setCustomerListPage(1)
     setCustomerListOpen(true)
   }
 
@@ -2387,9 +2413,14 @@ export default function App() {
                   直近の顧客ID（過去5件）：{getRecentCustomerIds(5).length ? getRecentCustomerIds(5).join(' / ') : 'なし'}
                 </div>
               </div>
-              <button type="button" className="btn small" onClick={handleCloseCustomerList}>
-                閉じる
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <div className="mutedText" style={{ fontSize: 12, fontWeight: 800 }}>
+                  登録済み顧客{customerList.length}名
+                </div>
+                <button type="button" className="btn small" onClick={handleCloseCustomerList}>
+                  閉じる
+                </button>
+              </div>
             </div>
             <div className="imageModalBody">
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end', marginBottom: '12px' }}>
@@ -2432,9 +2463,85 @@ export default function App() {
                 <button type="button" className="btn" onClick={handleRunCustomerSearch}>
                   検索
                 </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setCustomerListMode((m) => (m === 'list' ? 'search' : 'list'))
+                    setCustomerListPage(1)
+                  }}
+                >
+                  {customerListMode === 'list' ? '検索表示' : '一覧表示'}
+                </button>
               </div>
 
-              {customerSearchRan ? (
+              {customerListMode === 'list' ? (
+                sortedCustomerList.length ? (
+                  <>
+                    <div className="customerSelectList">
+                      {paginatedCustomerList.map((c) => (
+                        <div key={c.customerKey || c.customerId || c.customerName} className="customerSelectButton">
+                          <div className="customerRowTop">
+                            <div className="customerName">{c.customerName || '名称未設定'}</div>
+                            <div className="customerId">{c.customerId || 'IDなし'}</div>
+                            <button
+                              type="button"
+                              className="btn small danger"
+                              onClick={() => handleDeleteCustomer(c.customerKey || c.customerId, c.customerId, c.customerName)}
+                              style={{ marginLeft: '8px' }}
+                            >
+                              削除
+                            </button>
+                          </div>
+                          <div className="mutedText" style={{ marginTop: 6 }}>
+                            {c.customerKana || 'カナ未登録'} / {c.phone || '電話未登録'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {sortedCustomerList.length > CUSTOMER_LIST_PAGE_SIZE ? (
+                      <div className="historyPagination">
+                        <span className="historyPaginationInfo">
+                          {sortedCustomerList.length}件中 {(customerListPage - 1) * CUSTOMER_LIST_PAGE_SIZE + 1}–
+                          {Math.min(customerListPage * CUSTOMER_LIST_PAGE_SIZE, sortedCustomerList.length)}件目
+                        </span>
+                        <div className="historyPaginationControls">
+                          <button
+                            type="button"
+                            className="btn small"
+                            disabled={customerListPage <= 1}
+                            onClick={() => setCustomerListPage((p) => Math.max(1, p - 1))}
+                          >
+                            前へ
+                          </button>
+                          <span className="historyPaginationPages">
+                            {Array.from({ length: customerListTotalPages }, (_, i) => i + 1).map((p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                className={`btn small ${customerListPage === p ? 'primary' : ''}`}
+                                onClick={() => setCustomerListPage(p)}
+                              >
+                                {p}
+                              </button>
+                            ))}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn small"
+                            disabled={customerListPage >= customerListTotalPages}
+                            onClick={() => setCustomerListPage((p) => Math.min(customerListTotalPages, p + 1))}
+                          >
+                            次へ
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="mutedText">顧客がまだ登録されていません。</div>
+                )
+              ) : customerSearchRan ? (
                 customerSearchResults.length ? (
                   <div className="customerSelectList">
                     {customerSearchResults.map((c) => (
