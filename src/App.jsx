@@ -90,8 +90,9 @@ export default function App() {
   const [imageManagerOpen, setImageManagerOpen] = useState(false)
   const [imageManagerActiveRecordId, setImageManagerActiveRecordId] = useState('')
   const [imageToolsMenuOpen, setImageToolsMenuOpen] = useState(false)
-  const [imageStorageInfoOpen, setImageStorageInfoOpen] = useState(false)
-  const [storageViewerOpen, setStorageViewerOpen] = useState(false)
+  const [imageExportFrom, setImageExportFrom] = useState('')
+  const [imageExportTo, setImageExportTo] = useState('')
+  const [imageExportBusy, setImageExportBusy] = useState(false)
   const [customerListOpen, setCustomerListOpen] = useState(false)
   const [csvMenuOpen, setCsvMenuOpen] = useState(false)
   const [showSaveToast, setShowSaveToast] = useState(false)
@@ -359,6 +360,8 @@ export default function App() {
     const id = createId()
     const createdAt = Date.now()
 
+    const normalizedImages = renameImagesForCustomerAndDate(images || [], customerName.trim(), visitDate || '')
+
     const record = {
       id,
       customerId: effectiveCustomerId,
@@ -378,7 +381,7 @@ export default function App() {
       lifestyleRank,
       conditionScore,
       conditionRank,
-      images: images || [],
+      images: normalizedImages,
       createdAt,
     }
 
@@ -387,6 +390,7 @@ export default function App() {
     setCurrentId(id)
     setCurrentCreatedAt(createdAt)
     setSelectedCustomerId(record.customerId)
+    setImages(normalizedImages)
 
     // 画面上部に保存完了トーストを表示
     setShowSaveToast(true)
@@ -657,6 +661,46 @@ export default function App() {
     }
   }
 
+  function handleDeleteCustomer(customerKey, customerIdValue, customerNameValue) {
+    const key = String(customerKey || '').trim()
+    const cid = String(customerIdValue || '').trim()
+    const name = String(customerNameValue || '').trim()
+
+    const isNoId = key.startsWith('NOID:')
+    const label = cid ? `顧客ID「${cid}」` : name ? `お客様名「${name}」` : 'この顧客'
+
+    const targets = records.filter((r) => {
+      if (isNoId) {
+        const n = key.slice('NOID:'.length)
+        return !getCustomerIdFromRecord(r) && String(r.customerName || '').trim() === n
+      }
+      return getCustomerIdFromRecord(r) === cid
+    })
+
+    if (!targets.length) {
+      alert('削除対象の履歴が見つかりません')
+      return
+    }
+
+    const ok = window.confirm(`${label} の履歴 ${targets.length}件 を削除しますか？\n（元に戻せません）`)
+    if (!ok) return
+
+    const next = records.filter((r) => !targets.some((t) => t.id === r.id))
+    replaceRecords(next)
+    setRecords(next)
+    setCompareIds([])
+
+    // 選択中顧客が削除対象なら解除
+    if (selectedCustomerId === key || (!isNoId && selectedCustomerId === cid)) {
+      setSelectedCustomerId('')
+    }
+
+    // 編集中の履歴が削除対象ならリフレッシュ
+    if (currentId && targets.some((t) => t.id === currentId)) {
+      handleRefresh()
+    }
+  }
+
   function handleSelectCustomer(customerIdValue) {
     setSelectedCustomerId(customerIdValue)
     setCompareIds([])
@@ -756,85 +800,222 @@ export default function App() {
     setImageToolsMenuOpen(false)
   }
 
-  function handleOpenImageStorageInfo() {
-    handleCloseImageToolsMenu()
-    setImageStorageInfoOpen(true)
+  function safeFilePart(input) {
+    return String(input || '')
+      .trim()
+      .replace(/[\\/:*?"<>|\u0000-\u001F]/g, '_')
+      .replace(/\s+/g, '_')
+      .slice(0, 80)
   }
 
-  function handleCloseImageStorageInfo() {
-    setImageStorageInfoOpen(false)
+  function getImageExt(img) {
+    const t = String(img?.type || '')
+    if (t.includes('png')) return 'png'
+    if (t.includes('jpeg') || t.includes('jpg')) return 'jpg'
+    const dataUrl = String(img?.dataUrl || '')
+    const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/)
+    const mime = m?.[1] || ''
+    if (mime.includes('png')) return 'png'
+    if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg'
+    return 'jpg'
   }
 
-  function handleOpenStorageViewer() {
-    handleCloseImageToolsMenu()
-    setStorageViewerOpen(true)
+  function renameImagesForCustomerAndDate(imagesList, customerNameValue, visitDateValue) {
+    const list = Array.isArray(imagesList) ? imagesList : []
+    const name = safeFilePart(customerNameValue || '名称未設定') || '名称未設定'
+    const dateRaw = String(visitDateValue || '').trim()
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : safeFilePart(dateRaw || '日付未設定') || '日付未設定'
+
+    return list.map((img, idx) => {
+      const ext = getImageExt(img)
+      const seq = String(idx + 1).padStart(2, '0')
+      const nextName = `${name}_${date}_${seq}.${ext}`
+      return { ...(img || {}), fileName: nextName }
+    })
   }
 
-  function handleCloseStorageViewer() {
-    setStorageViewerOpen(false)
+  function buildImageFileName(rec, img, index) {
+    const cid = safeFilePart(rec?.customerId || 'IDなし')
+    const name = safeFilePart(rec?.customerName || '名称未設定')
+    const date = safeFilePart(
+      rec?.visitDate || (rec?.createdAt ? new Date(rec.createdAt).toISOString().slice(0, 10) : ''),
+    )
+    const ext = getImageExt(img)
+    const base = safeFilePart(img?.fileName || `image_${String(index + 1).padStart(2, '0')}.${ext}`)
+    const baseNoExt = base.replace(/\.[a-zA-Z0-9]+$/, '')
+    return `${date ? date + '_' : ''}${cid}_${name}_${baseNoExt}.${ext}`
   }
 
-  function bytesToHuman(bytes) {
-    const b = Number(bytes) || 0
-    if (b < 1024) return `${b} B`
-    const kb = b / 1024
-    if (kb < 1024) return `${kb.toFixed(1)} KB`
-    const mb = kb / 1024
-    return `${mb.toFixed(2)} MB`
+  async function dataUrlToBlob(dataUrl) {
+    const url = String(dataUrl || '')
+    if (!url.startsWith('data:')) return null
+    const res = await fetch(url)
+    return await res.blob()
   }
 
-  const storageSnapshot = useMemo(() => {
-    const key = 'lash-score-records'
-    const raw = localStorage.getItem(key) || ''
-    const approxBytes = raw.length * 2 // UTF-16 目安
-    const imageCount = records.reduce((sum, r) => sum + (Array.isArray(r.images) ? r.images.length : 0), 0)
-    return {
-      key,
-      raw,
-      approxBytes,
-      recordCount: records.length,
-      imageCount,
-    }
-  }, [records])
+  function downloadBlob(fileName, blob) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500)
+  }
 
-  async function handleCopyStorageJson() {
+  async function writeBlobToFileHandle(handle, blob) {
+    const writable = await handle.createWritable()
+    await writable.write(blob)
+    await writable.close()
+  }
+
+  async function pickSaveHandle({ suggestedName, mime, extensions }) {
     try {
-      const text = storageSnapshot.raw || ''
-      if (!text) {
-        alert('保存データがありません')
+      if (window.top !== window.self) {
+        alert('この画面（プレビュー/埋め込み表示）では保存先の指定ができません。外部ブラウザで開いてからお試しください。')
+        return null
+      }
+      if (typeof window.showSaveFilePicker !== 'function') {
+        alert('このブラウザでは保存先の指定に対応していません（通常ダウンロードで保存してください）')
+        return null
+      }
+      const accept =
+        mime && Array.isArray(extensions) && extensions.length ? { [mime]: extensions } : undefined
+      const types = accept ? [{ description: '保存', accept }] : undefined
+      return await window.showSaveFilePicker({
+        suggestedName: suggestedName || undefined,
+        types,
+      })
+    } catch (e) {
+      console.warn(e)
+      return null
+    }
+  }
+
+  async function saveImagesAsZipWithPicker(items, zipName) {
+    const { default: JSZip } = await import('jszip')
+    const zip = new JSZip()
+
+    for (let i = 0; i < items.length; i++) {
+      const { rec, img, index } = items[i]
+      // eslint-disable-next-line no-await-in-loop
+      const blob = await dataUrlToBlob(img?.dataUrl)
+      if (!blob) continue
+      const fileName = buildImageFileName(rec, img, index)
+      zip.file(fileName, blob)
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+
+    const handle = await pickSaveHandle({
+      suggestedName: zipName,
+      mime: 'application/zip',
+      extensions: ['.zip'],
+    })
+    if (!handle) {
+      alert('この環境ではZIPの保存先指定ができません。Edge / Chrome の通常ブラウザで開いてお試しください。')
+      return false
+    }
+
+    await writeBlobToFileHandle(handle, zipBlob)
+    return true
+  }
+
+  function getRecordDateKey(rec) {
+    const v = String(rec?.visitDate || '').trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+    const c = rec?.createdAt ? new Date(rec.createdAt).toISOString().slice(0, 10) : ''
+    return c
+  }
+
+  async function handleSaveSingleImage(rec, img, index) {
+    try {
+      setImageExportBusy(true)
+      const fileName = buildImageFileName(rec, img, index)
+      const ext = getImageExt(img)
+      const mime = ext === 'png' ? 'image/png' : 'image/jpeg'
+      const handle = await pickSaveHandle({
+        suggestedName: fileName,
+        mime,
+        extensions: [`.${ext}`],
+      })
+      if (handle) {
+        const blob = await dataUrlToBlob(img?.dataUrl)
+        if (!blob) return
+        await writeBlobToFileHandle(handle, blob)
         return
       }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        alert('保存データ（JSON）をコピーしました')
-        return
-      }
-      alert('この環境では自動コピーができません。下のJSONを手動でコピーしてください。')
+
+      // 未対応環境は通常ダウンロード
+      const blob = await dataUrlToBlob(img?.dataUrl)
+      if (!blob) return
+      downloadBlob(fileName, blob)
     } catch (e) {
       console.error(e)
-      alert('コピーに失敗しました。下のJSONを手動でコピーしてください。')
+      alert('保存に失敗しました')
+    } finally {
+      setImageExportBusy(false)
     }
   }
 
-  function handleDownloadStorageJson() {
+  function buildBulkItemsAll() {
+    const items = []
+    recordsWithImages.forEach((rec) => {
+      const imgs = Array.isArray(rec.images) ? rec.images : []
+      imgs.forEach((img, index) => {
+        items.push({ rec, img, index })
+      })
+    })
+    return items
+  }
+
+  function buildBulkItemsByRange() {
+    const from = String(imageExportFrom || '').trim()
+    const to = String(imageExportTo || '').trim()
+
+    const subset = recordsWithImages.filter((r) => {
+      const d = getRecordDateKey(r)
+      if (!d) return false
+      if (from && d < from) return false
+      if (to && d > to) return false
+      return true
+    })
+
+    const items = []
+    subset.forEach((rec) => {
+      const imgs = Array.isArray(rec.images) ? rec.images : []
+      imgs.forEach((img, index) => {
+        items.push({ rec, img, index })
+      })
+    })
+    return items
+  }
+
+  async function handleBulkSaveClick(mode) {
+    const items = mode === 'range' ? buildBulkItemsByRange() : buildBulkItemsAll()
+    if (!items.length) {
+      alert('出力データがありません')
+      return
+    }
+
     try {
-      const text = storageSnapshot.raw || ''
-      if (!text) {
-        alert('保存データがありません')
-        return
-      }
-      const blob = new Blob([text], { type: 'application/json;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `lash-score-backup-${new Date().toISOString().slice(0, 10)}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      setImageExportBusy(true)
+      const now = new Date()
+      const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(
+        now.getHours(),
+      ).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+      const from = safeFilePart(imageExportFrom || 'from')
+      const to = safeFilePart(imageExportTo || 'to')
+      const zipName = mode === 'range' ? `images_${from}-${to}_${ts}.zip` : `images_all_${ts}.zip`
+
+      const ok = await saveImagesAsZipWithPicker(items, zipName)
+      if (!ok) return
     } catch (e) {
       console.error(e)
-      alert('ダウンロードに失敗しました')
+      alert('保存に失敗しました')
+    } finally {
+      setImageExportBusy(false)
     }
   }
 
@@ -1331,12 +1512,6 @@ export default function App() {
             </button>
             {imageToolsMenuOpen && (
               <div className="csvMenu" style={{ top: '100%', right: 0, left: 'auto', flexDirection: 'column' }}>
-                <button type="button" className="btn small" onClick={handleOpenImageStorageInfo}>
-                  画像の保存場所を表示
-                </button>
-                <button type="button" className="btn small" onClick={handleOpenStorageViewer}>
-                  保存データ（ローカルストレージ）を表示
-                </button>
                 <button
                   type="button"
                   className="btn small"
@@ -1380,7 +1555,15 @@ export default function App() {
 
           <SectionCard title="画像アップロード" subtitle="jpg / jpeg / png（複数可）">
             <div id="pdf-images">
-              <ImageUploadField images={images} onChange={setImages} />
+              <ImageUploadField
+                images={images}
+                onChange={(next) => {
+                  setImages((prev) => {
+                    const arr = typeof next === 'function' ? next(prev) : next
+                    return renameImagesForCustomerAndDate(arr, customerName.trim(), visitDate || '')
+                  })
+                }}
+              />
             </div>
           </SectionCard>
 
@@ -1743,9 +1926,42 @@ export default function App() {
                   保存済み画像がある履歴: {recordsWithImages.length}件
                 </div>
               </div>
-              <button type="button" className="btn small" onClick={handleCloseImageManager}>
-                閉じる
-              </button>
+              <div className="imageModalHeaderRight">
+                <div className="imageManagerRange">
+                  <input
+                    type="date"
+                    className="textInput"
+                    value={imageExportFrom}
+                    onChange={(e) => setImageExportFrom(e.target.value)}
+                  />
+                  <span className="mutedText">〜</span>
+                  <input
+                    type="date"
+                    className="textInput"
+                    value={imageExportTo}
+                    onChange={(e) => setImageExportTo(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn small"
+                    onClick={() => handleBulkSaveClick('range')}
+                    disabled={imageExportBusy}
+                  >
+                    期間保存
+                  </button>
+                  <button
+                    type="button"
+                    className="btn small"
+                    onClick={() => handleBulkSaveClick('all')}
+                    disabled={imageExportBusy}
+                  >
+                    画像一括保存
+                  </button>
+                  <button type="button" className="btn small" onClick={handleCloseImageManager}>
+                    閉じる
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="imageManagerBody">
               <div className="imageManagerSidebar">
@@ -1775,7 +1991,7 @@ export default function App() {
                 {activeImageManagerRecord ? (
                   <>
                     <div className="imageManagerMainHeader">
-                      <div>
+                      <div className="imageManagerHeaderTop">
                         <div className="imageModalTitle">
                           {activeImageManagerRecord.customerName || '名称未設定'}
                         </div>
@@ -1788,7 +2004,7 @@ export default function App() {
                     <div className="imageModalBody">
                       {Array.isArray(activeImageManagerRecord.images) && activeImageManagerRecord.images.length ? (
                         <div className="imageModalGrid">
-                          {activeImageManagerRecord.images.map((img) => (
+                          {activeImageManagerRecord.images.map((img, index) => (
                             <div key={img.id} className="imageTile">
                               <div className="imagePreview">
                                 <img src={img.dataUrl} alt={img.fileName || 'upload'} />
@@ -1797,6 +2013,14 @@ export default function App() {
                                 <div className="imageName" title={img.fileName}>
                                   {img.fileName || 'image'}
                                 </div>
+                                <button
+                                  type="button"
+                                  className="btn small"
+                                  disabled={imageExportBusy}
+                                  onClick={() => handleSaveSingleImage(activeImageManagerRecord, img, index)}
+                                >
+                                  保存
+                                </button>
                                 <button
                                   type="button"
                                   className="btn small danger"
@@ -1851,75 +2075,20 @@ export default function App() {
                         <div className="customerRowTop">
                           <div className="customerName">{c.customerName || '名称未設定'}</div>
                           <div className="customerId">{c.customerId || 'IDなし'}</div>
+                          <button
+                            type="button"
+                            className="btn small danger"
+                            onClick={() => handleDeleteCustomer(c.customerKey || c.customerId, c.customerId, c.customerName)}
+                            style={{ marginLeft: '8px' }}
+                          >
+                            削除
+                          </button>
                         </div>
                       </div>
                     ))}
                 </div>
               ) : (
                 <div className="mutedText">顧客がまだ登録されていません。</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {imageStorageInfoOpen && (
-        <div className="imageModalOverlay" onClick={handleCloseImageStorageInfo}>
-          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
-            <div className="imageModalHeader">
-              <div>
-                <div className="imageModalTitle">画像の保存場所について</div>
-                <div className="imageModalSubtitle">このアプリで保存している画像の場所</div>
-              </div>
-              <button type="button" className="btn small" onClick={handleCloseImageStorageInfo}>
-                閉じる
-              </button>
-            </div>
-            <div className="imageModalBody">
-              <div className="mutedText" style={{ lineHeight: 1.7 }}>
-                このアプリの画像は、PCのフォルダにファイルとして保存されているわけではありません。ブラウザの保存領域（ローカルストレージ）に保存されています。
-                <br />
-                そのため、ボタンを押して「画像が入っているフォルダを開く」ことはできません。
-                <br />
-                画像の確認や削除は、上のメニューから「画像の確認/削除」をご利用ください。
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {storageViewerOpen && (
-        <div className="imageModalOverlay" onClick={handleCloseStorageViewer}>
-          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
-            <div className="imageModalHeader">
-              <div>
-                <div className="imageModalTitle">保存データ（ローカルストレージ）</div>
-                <div className="imageModalSubtitle">
-                  key: {storageSnapshot.key} / 履歴 {storageSnapshot.recordCount}件 / 画像 {storageSnapshot.imageCount}枚 / 目安 {bytesToHuman(storageSnapshot.approxBytes)}
-                </div>
-              </div>
-              <button type="button" className="btn small" onClick={handleCloseStorageViewer}>
-                閉じる
-              </button>
-            </div>
-            <div className="imageModalBody">
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                <button type="button" className="btn small" onClick={handleCopyStorageJson}>
-                  JSONをコピー
-                </button>
-                <button type="button" className="btn small" onClick={handleDownloadStorageJson}>
-                  JSONをダウンロード
-                </button>
-              </div>
-              {storageSnapshot.raw ? (
-                <textarea
-                  className="textInput"
-                  style={{ minHeight: '260px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
-                  readOnly
-                  value={storageSnapshot.raw}
-                />
-              ) : (
-                <div className="mutedText">保存データがありません。</div>
               )}
             </div>
           </div>

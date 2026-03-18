@@ -786,6 +786,27 @@ textarea {
   color: var(--ink);
 }
 
+.customerRowTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.customerRowTop .customerName {
+  min-width: 0;
+  flex: 1;
+}
+
+.customerRowTop .customerId {
+  flex: 0 0 auto;
+}
+
+.customerRowTop .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .customerId,
 .mutedChip {
   font-size: 12px;
@@ -955,6 +976,14 @@ textarea {
   gap: 10px;
 }
 
+.imageModalHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .imageModalTitle {
   font-weight: 900;
 }
@@ -1042,6 +1071,33 @@ textarea {
 
 .imageManagerMainHeader {
   padding: 12px 16px 0;
+}
+
+.imageManagerHeaderTop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.imageManagerActions {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.imageManagerRange {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.imageManagerRange .textInput {
+  width: auto;
+  min-width: 170px;
+  padding: 10px 12px;
+  min-height: 40px;
 }
 
 .imageModalGrid {
