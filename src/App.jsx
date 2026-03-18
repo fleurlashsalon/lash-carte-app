@@ -93,6 +93,14 @@ export default function App() {
   const [imageExportFrom, setImageExportFrom] = useState('')
   const [imageExportTo, setImageExportTo] = useState('')
   const [imageExportBusy, setImageExportBusy] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState({
+    customerId: '',
+    customerName: '',
+    customerKana: '',
+    phone: '',
+  })
+  const [customerSearchResults, setCustomerSearchResults] = useState([])
+  const [customerSearchRan, setCustomerSearchRan] = useState(false)
   const [customerListOpen, setCustomerListOpen] = useState(false)
   const [csvMenuOpen, setCsvMenuOpen] = useState(false)
   const [showSaveToast, setShowSaveToast] = useState(false)
@@ -170,6 +178,7 @@ export default function App() {
           customerId: id, // 空の場合あり
           customerName: rec.customerName || '',
           customerKana: rec.customerKana || '',
+          phone: rec.phone || '',
           birthday: rec.birthday || '',
           address: rec.address || '',
         })
@@ -918,6 +927,17 @@ export default function App() {
   }
 
   async function saveImagesAsZipWithPicker(items, zipName) {
+    // Chromeは「ユーザー操作直後」にPickerを呼ばないとブロックされるため、先に保存先を確定する
+    const handle = await pickSaveHandle({
+      suggestedName: zipName,
+      mime: 'application/zip',
+      extensions: ['.zip'],
+    })
+    if (!handle) {
+      alert('この環境ではZIPの保存先指定ができません。Edge / Chrome の通常ブラウザで開いてお試しください。')
+      return false
+    }
+
     const { default: JSZip } = await import('jszip')
     const zip = new JSZip()
 
@@ -931,17 +951,6 @@ export default function App() {
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' })
-
-    const handle = await pickSaveHandle({
-      suggestedName: zipName,
-      mime: 'application/zip',
-      extensions: ['.zip'],
-    })
-    if (!handle) {
-      alert('この環境ではZIPの保存先指定ができません。Edge / Chrome の通常ブラウザで開いてお試しください。')
-      return false
-    }
-
     await writeBlobToFileHandle(handle, zipBlob)
     return true
   }
@@ -1044,11 +1053,56 @@ export default function App() {
   }
 
   function handleOpenCustomerList() {
+    setCustomerSearch((prev) => ({
+      customerId: prev.customerId || '',
+      customerName: prev.customerName || '',
+      customerKana: prev.customerKana || '',
+      phone: prev.phone || '',
+    }))
+    setCustomerSearchResults([])
+    setCustomerSearchRan(false)
     setCustomerListOpen(true)
   }
 
   function handleCloseCustomerList() {
     setCustomerListOpen(false)
+  }
+
+  function handleRunCustomerSearch() {
+    const qId = String(customerSearch.customerId || '').trim().toLowerCase()
+    const qName = String(customerSearch.customerName || '').trim().toLowerCase()
+    const qKana = String(customerSearch.customerKana || '').trim().toLowerCase()
+    const qPhone = String(customerSearch.phone || '').trim().toLowerCase()
+
+    setCustomerSearchRan(true)
+
+    if (!qId && !qName && !qKana && !qPhone) {
+      setCustomerSearchResults([])
+      return
+    }
+
+    const results = customerList
+      .filter((c) => {
+        const id = String(c.customerId || '').toLowerCase()
+        const name = String(c.customerName || '').toLowerCase()
+        const kana = String(c.customerKana || '').toLowerCase()
+        const phone = String(c.phone || '').toLowerCase()
+        if (qId && !id.includes(qId)) return false
+        if (qName && !name.includes(qName)) return false
+        if (qKana && !kana.includes(qKana)) return false
+        if (qPhone && !phone.includes(qPhone)) return false
+        return true
+      })
+      .sort((a, b) => {
+        const aid = String(a.customerId || '')
+        const bid = String(b.customerId || '')
+        if (aid && bid) return aid.localeCompare(bid, 'ja')
+        if (aid && !bid) return -1
+        if (!aid && bid) return 1
+        return String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ja')
+      })
+
+    setCustomerSearchResults(results)
   }
 
   function handleDeleteSavedImage(recordId, imageId) {
@@ -2083,26 +2137,60 @@ export default function App() {
           <div className="imageModal" onClick={(e) => e.stopPropagation()}>
             <div className="imageModalHeader">
               <div>
-                <div className="imageModalTitle">顧客一覧</div>
-                <div className="imageModalSubtitle">顧客ID / お客様名（{customerList.length}件）</div>
+                <div className="imageModalTitle">顧客検索</div>
+                <div className="imageModalSubtitle">顧客ID / お客様名 / 氏名（カナ） / 電話番号で検索</div>
               </div>
               <button type="button" className="btn small" onClick={handleCloseCustomerList}>
                 閉じる
               </button>
             </div>
             <div className="imageModalBody">
-              {customerList.length ? (
-                <div className="customerSelectList">
-                  {[...customerList]
-                    .sort((a, b) => {
-                      const aid = String(a.customerId || '')
-                      const bid = String(b.customerId || '')
-                      if (aid && bid) return aid.localeCompare(bid, 'ja')
-                      if (aid && !bid) return -1
-                      if (!aid && bid) return 1
-                      return String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ja')
-                    })
-                    .map((c) => (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end', marginBottom: '12px' }}>
+                <div className="field" style={{ minWidth: 180, flex: '1 1 180px' }}>
+                  <label className="inputLabel">顧客ID</label>
+                  <input
+                    className="textInput"
+                    value={customerSearch.customerId}
+                    onChange={(e) => setCustomerSearch((p) => ({ ...p, customerId: e.target.value }))}
+                    placeholder="例) A-00001"
+                  />
+                </div>
+                <div className="field" style={{ minWidth: 180, flex: '1 1 180px' }}>
+                  <label className="inputLabel">お客様名</label>
+                  <input
+                    className="textInput"
+                    value={customerSearch.customerName}
+                    onChange={(e) => setCustomerSearch((p) => ({ ...p, customerName: e.target.value }))}
+                    placeholder="例) 山田 花子"
+                  />
+                </div>
+                <div className="field" style={{ minWidth: 180, flex: '1 1 180px' }}>
+                  <label className="inputLabel">氏名（カナ）</label>
+                  <input
+                    className="textInput"
+                    value={customerSearch.customerKana}
+                    onChange={(e) => setCustomerSearch((p) => ({ ...p, customerKana: e.target.value }))}
+                    placeholder="例) ヤマダ"
+                  />
+                </div>
+                <div className="field" style={{ minWidth: 180, flex: '1 1 180px' }}>
+                  <label className="inputLabel">電話番号</label>
+                  <input
+                    className="textInput"
+                    value={customerSearch.phone}
+                    onChange={(e) => setCustomerSearch((p) => ({ ...p, phone: e.target.value }))}
+                    placeholder="例) 090"
+                  />
+                </div>
+                <button type="button" className="btn" onClick={handleRunCustomerSearch}>
+                  検索
+                </button>
+              </div>
+
+              {customerSearchRan ? (
+                customerSearchResults.length ? (
+                  <div className="customerSelectList">
+                    {customerSearchResults.map((c) => (
                       <div key={c.customerKey || c.customerId || c.customerName} className="customerSelectButton">
                         <div className="customerRowTop">
                           <div className="customerName">{c.customerName || '名称未設定'}</div>
@@ -2116,11 +2204,17 @@ export default function App() {
                             削除
                           </button>
                         </div>
+                        <div className="mutedText" style={{ marginTop: 6 }}>
+                          {c.customerKana || 'カナ未登録'} / {c.phone || '電話未登録'}
+                        </div>
                       </div>
                     ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="mutedText">該当顧客がありません。</div>
+                )
               ) : (
-                <div className="mutedText">顧客がまだ登録されていません。</div>
+                <div className="mutedText">検索条件を入力して「検索」を押してください。</div>
               )}
             </div>
           </div>
