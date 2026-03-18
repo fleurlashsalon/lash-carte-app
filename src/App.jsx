@@ -392,6 +392,11 @@ export default function App() {
     setSelectedCustomerId(record.customerId)
     setImages(normalizedImages)
 
+    // blur/入力中の同名ポップアップ抑止を解除
+    setTimeout(() => {
+      suppressExistingNamePopupRef.current = false
+    }, 50)
+
     // 画面上部に保存完了トーストを表示
     setShowSaveToast(true)
     if (saveToastTimerRef.current) {
@@ -1452,7 +1457,15 @@ export default function App() {
           <div className="appTitle">Fleur Lash</div>
         </div>
         <div className="headerActions">
-          <button type="button" className="btn primary" onClick={handleSave}>
+          <button
+            type="button"
+            className="btn primary"
+            onMouseDown={() => {
+              // 保存ボタン押下で氏名inputがblurする際の同名ポップアップを抑止（クリックが潰れるのを防ぐ）
+              suppressExistingNamePopupRef.current = true
+            }}
+            onClick={handleSave}
+          >
             保存
           </button>
           <div className="csvMenuWrap">
