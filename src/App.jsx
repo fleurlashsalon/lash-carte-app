@@ -1268,6 +1268,63 @@ export default function App() {
     setCsvMenuOpen(false)
   }
 
+  function getRecordDateForExport(rec) {
+    const v = String(rec?.visitDate || '').trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+    if (rec?.createdAt) return new Date(rec.createdAt).toISOString().slice(0, 10)
+    return ''
+  }
+
+  function handleExportCsvByDateRangePrompt() {
+    const sourceRecords = records
+    if (!sourceRecords.length) {
+      alert('エクスポートできる履歴がありません')
+      return
+    }
+
+    const fromInput = window.prompt('開始日を入力してください（例: 2026-03-11）', '')
+    const from = String(fromInput || '').trim()
+    if (!from) return
+
+    const toInput = window.prompt('終了日を入力してください（例: 2026-03-18）', '')
+    const to = String(toInput || '').trim()
+    if (!to) return
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      alert('日付形式が正しくありません（YYYY-MM-DD）')
+      return
+    }
+    if (from > to) {
+      alert('開始日が終了日より後になっています')
+      return
+    }
+
+    const subset = sourceRecords
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .filter((r) => {
+        const d = getRecordDateForExport(r)
+        if (!d) return false
+        return d >= from && d <= to
+      })
+
+    if (!subset.length) {
+      alert(`期間「${from}〜${to}」の履歴がありません`)
+      return
+    }
+
+    const rows = subset.map(recordToAllRow)
+    const now = new Date()
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(
+      now.getHours(),
+    ).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+    const fileName = `fleur-carte-range-${from}-to-${to}-${ts}.csv`
+
+    const ok = exportCsvOrAlert({ rows, headers: CSV_HEADERS_ALL, fileName })
+    if (!ok) return
+    setCsvMenuOpen(false)
+  }
+
   function handleExportCsv(mode) {
     // 画面で使用している保存データ（records state）と参照先を統一
     const sourceRecords = records
@@ -1554,6 +1611,20 @@ export default function App() {
                 <button
                   type="button"
                   className="btn small"
+                  onClick={handleExportCsvByDateRangePrompt}
+                >
+                  期間出力
+                </button>
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() => handleExportCsv('all')}
+                >
+                  全件
+                </button>
+                <button
+                  type="button"
+                  className="btn small"
                   onClick={handleExportCsvByCustomerIdPrompt}
                 >
                   顧客ID毎
@@ -1564,13 +1635,6 @@ export default function App() {
                   onClick={handleExportCsvByCustomerIdAndDatePrompt}
                 >
                   顧客ID+日付毎
-                </button>
-                <button
-                  type="button"
-                  className="btn small"
-                  onClick={() => handleExportCsv('all')}
-                >
-                  全件
                 </button>
                 <input
                   ref={csvInputRef}
