@@ -330,7 +330,7 @@ export default function App() {
       if (existingWithSameId.length > 0) {
         const registeredName = (existingWithSameId[0].customerName || '').trim()
         if (registeredName && registeredName !== name) {
-          next.customerName = '使用済みの顧客IDです、お客様名を確認してください'
+          next.customerId = '使用済みの顧客IDです'
         }
       }
     }
