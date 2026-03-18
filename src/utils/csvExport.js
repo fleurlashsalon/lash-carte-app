@@ -51,6 +51,37 @@ export function downloadCsv(fileName, csvContent) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1500)
 }
 
+async function writeBlobToFileHandle(handle, blob) {
+  const writable = await handle.createWritable()
+  await writable.write(blob)
+  await writable.close()
+}
+
+async function pickSaveHandleCsv(suggestedName) {
+  try {
+    if (window.top !== window.self) {
+      alert('この画面（プレビュー/埋め込み表示）では保存先の指定ができません。外部ブラウザで開いてからお試しください。')
+      return null
+    }
+    if (typeof window.showSaveFilePicker !== 'function') {
+      alert('このブラウザでは保存先の指定に対応していません。Edge / Chrome の通常ブラウザでお試しください。')
+      return null
+    }
+    return await window.showSaveFilePicker({
+      suggestedName: suggestedName || undefined,
+      types: [
+        {
+          description: 'CSV',
+          accept: { 'text/csv': ['.csv'] },
+        },
+      ],
+    })
+  } catch (e) {
+    console.warn(e)
+    return null
+  }
+}
+
 export function exportScoreSheetCsv({ rows, headers, fileName }) {
   const rs = Array.isArray(rows) ? rows : []
   const hs = Array.isArray(headers) ? headers : []
@@ -69,7 +100,20 @@ export function exportScoreSheetCsv({ rows, headers, fileName }) {
   const csv = buildCsv(rs, hs)
   console.log('[CSV export] csv content:', csv)
 
-  downloadCsv(fileName, csv)
+  const content = String(csv ?? '')
+  const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' }) // UTF-8 BOM付き
+
+  // 保存先指定（対応環境のみ）。未対応ならダウンロードにフォールバックせず中止する。
+  pickSaveHandleCsv(fileName)
+    .then((handle) => {
+      if (!handle) return
+      return writeBlobToFileHandle(handle, blob)
+    })
+    .catch((e) => {
+      console.error(e)
+      alert('保存に失敗しました')
+    })
+
   return true
 }
 
