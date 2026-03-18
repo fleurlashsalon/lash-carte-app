@@ -1773,7 +1773,7 @@ export default function App() {
           </button>
           <div className="csvMenuWrap">
             <button type="button" className="btn" onClick={handleToggleImageToolsMenu}>
-              画像確認/削除
+              画像
             </button>
             {imageToolsMenuOpen && (
               <div className="csvMenu" style={{ top: '100%', right: 0, left: 'auto', flexDirection: 'column' }}>
@@ -1802,7 +1802,7 @@ export default function App() {
               className="btn"
               onClick={() => setCsvMenuOpen((o) => !o)}
             >
-              CSV出力
+              CSV
             </button>
             {csvMenuOpen && (
               <div className="csvMenu">
@@ -1857,7 +1857,7 @@ export default function App() {
             )}
           </div>
           <button type="button" className="btn" onClick={handlePdfExport}>
-            PDF出力
+            PDF
           </button>
           <button type="button" className="btn" onClick={handleRefresh}>
             リフレッシュ
