@@ -39,7 +39,6 @@ import {
 } from './utils/storage.js'
 import { exportScoreSheetCsv } from './utils/csvExport.js'
 import { loadJapaneseFont } from './utils/pdfFont.js'
-import { supabase } from './lib/supabaseClient'
 
 const INITIAL_FORM = {
   eyeShape: undefined,
@@ -107,28 +106,6 @@ export default function App() {
     forceResetPinToDefault() // パスワードを強制的に 0000 に戻す
     setRecords(getRecords())
   }, [])
-
-  useEffect(() => {
-    const testSupabaseConnection = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-
-        console.log('Supabase接続テスト')
-        console.log('data:', data)
-        console.log('error:', error)
-      } catch (e) {
-        console.error('Supabase接続テスト失敗:', e)
-      }
-    }
-
-    testSupabaseConnection()
-  }, [])
-
-  function getCustomerIdFromRecord(rec) {
-    return String(rec.customerId || '').trim()
-  }
-
-  // この下は既存コードのまま
 
   function getCustomerIdFromRecord(rec) {
     return String(rec.customerId || '').trim()

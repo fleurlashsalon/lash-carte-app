@@ -21,11 +21,23 @@ export function isGoogleConfigured() {
 export function getRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+      return []
+    }
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : []
+    if (!Array.isArray(parsed)) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+      return []
+    }
+    return parsed.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
   } catch (error) {
     console.error('getRecords error:', error)
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+    } catch {
+      // ignore
+    }
     return []
   }
 }
