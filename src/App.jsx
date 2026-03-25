@@ -88,6 +88,8 @@ export default function App() {
   const [compareIds, setCompareIds] = useState([])
   const [imageModalRecord, setImageModalRecord] = useState(null)
   const [memoModalRecord, setMemoModalRecord] = useState(null)
+  /** 名前で基本情報を読み込んだ際、「確認」付きメモの一覧 */
+  const [reviewMemoListModal, setReviewMemoListModal] = useState(null)
   /** 任意「確認」チェック（保存時に記録へ含める） */
   const [reviewConfirmChecked, setReviewConfirmChecked] = useState(false)
   /** 保存データ呼び出し時に「確認」が付いていた場合のみ true（手動チェックでは true にしない） */
@@ -130,6 +132,32 @@ export default function App() {
 
   function getCustomerIdFromRecord(rec) {
     return String(rec.customerId || '').trim()
+  }
+
+  /** 同一顧客の履歴のうち「確認」チェックあり＋メモありを新しい順で集める */
+  function buildReviewMemoListForCustomer(rec) {
+    if (!rec) return []
+    const cid = getCustomerIdFromRecord(rec)
+    const name = String(rec.customerName || '').trim()
+    return records
+      .filter((r) => {
+        const same = cid
+          ? getCustomerIdFromRecord(r) === cid
+          : !getCustomerIdFromRecord(r) && String(r.customerName || '').trim() === name
+        if (!same) return false
+        if (!r.reviewConfirmChecked) return false
+        const memo =
+          r.formValues && typeof r.formValues.memo === 'string' ? r.formValues.memo.trim() : ''
+        return memo.length > 0
+      })
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .map((r) => ({
+        id: r.id,
+        visitDate: r.visitDate || '',
+        treatmentMenu: r.treatmentMenu || r.menuType || '',
+        memo:
+          r.formValues && typeof r.formValues.memo === 'string' ? r.formValues.memo.trim() : '',
+      }))
   }
 
   /** 顧客ID未入力時用: A-00001, A-00002, ... の次の番号を採番 */
@@ -752,6 +780,7 @@ export default function App() {
     setCompareIds([])
     setReviewConfirmChecked(false)
     setReviewBangFromSave(false)
+    setReviewMemoListModal(null)
   }
 
   function handleDeleteAllData() {
@@ -823,9 +852,25 @@ export default function App() {
     setReviewBangFromSave(Boolean(rec.reviewConfirmChecked))
     window.scrollTo({ top: 0, behavior: 'smooth' })
 
+    const reviewMemoItems = buildReviewMemoListForCustomer(rec)
+    setMemoModalRecord(null)
+    if (reviewMemoItems.length) {
+      setReviewMemoListModal({
+        customerName: rec.customerName || '',
+        customerId: getCustomerIdFromRecord(rec),
+        items: reviewMemoItems,
+      })
+    } else {
+      setReviewMemoListModal(null)
+    }
+
     setTimeout(() => {
       suppressExistingNamePopupRef.current = false
     }, 50)
+  }
+
+  function handleCloseReviewMemoList() {
+    setReviewMemoListModal(null)
   }
 
   function handleDelete(id) {
@@ -2317,6 +2362,38 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {reviewMemoListModal && reviewMemoListModal.items?.length ? (
+        <div className="imageModalOverlay" onClick={handleCloseReviewMemoList}>
+          <div className="imageModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">要確認メモ一覧</div>
+                <div className="imageModalSubtitle">
+                  {reviewMemoListModal.customerName || '名称未設定'}
+                  {reviewMemoListModal.customerId ? ` / ID: ${reviewMemoListModal.customerId}` : ''}
+                  <span className="reviewMemoModalTag">（過去に「確認」付きで保存されたメモ）</span>
+                </div>
+              </div>
+              <button type="button" className="btn small" onClick={handleCloseReviewMemoList}>
+                閉じる
+              </button>
+            </div>
+            <div className="imageModalBody">
+              <div className="reviewMemoListScroll">
+                {reviewMemoListModal.items.map((item) => (
+                  <div key={item.id} className="reviewMemoListItem">
+                    <div className="reviewMemoListMeta">
+                      {item.visitDate || '日付未設定'} ・ {item.treatmentMenu || 'メニュー未設定'}
+                    </div>
+                    <div className="reviewMemoListText">{item.memo}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {imageManagerOpen && (
         <div className="imageModalOverlay" onClick={handleCloseImageManager}>
