@@ -88,6 +88,10 @@ export default function App() {
   const [compareIds, setCompareIds] = useState([])
   const [imageModalRecord, setImageModalRecord] = useState(null)
   const [memoModalRecord, setMemoModalRecord] = useState(null)
+  /** 任意「確認」チェック（保存時に記録へ含める） */
+  const [reviewConfirmChecked, setReviewConfirmChecked] = useState(false)
+  /** 保存データ呼び出し時に「確認」が付いていた場合のみ true（手動チェックでは true にしない） */
+  const [reviewBangFromSave, setReviewBangFromSave] = useState(false)
   const [imageManagerOpen, setImageManagerOpen] = useState(false)
   const [imageManagerActiveRecordId, setImageManagerActiveRecordId] = useState('')
   const [imageToolsMenuOpen, setImageToolsMenuOpen] = useState(false)
@@ -260,6 +264,8 @@ export default function App() {
       setPhone(hit.phone || '')
       setBirthday(hit.birthday || '')
       setAddress(hit.address || '')
+      setReviewConfirmChecked(Boolean(hit.reviewConfirmChecked))
+      setReviewBangFromSave(Boolean(hit.reviewConfirmChecked))
       setSelectedCustomerId(id)
       setCompareIds([])
 
@@ -394,6 +400,11 @@ export default function App() {
     if (Object.prototype.hasOwnProperty.call(patch, 'treatmentMenu')) {
       setMenuType(patch.treatmentMenu)
     }
+    if (Object.prototype.hasOwnProperty.call(patch, 'reviewConfirmChecked')) {
+      const v = Boolean(patch.reviewConfirmChecked)
+      setReviewConfirmChecked(v)
+      if (!v) setReviewBangFromSave(false)
+    }
     if (Object.prototype.hasOwnProperty.call(patch, 'menuType')) {
       const nextMenu = patch.menuType
       const prevIsPerm = isPermMenu(menuType)
@@ -498,6 +509,7 @@ export default function App() {
       conditionRank,
       images: normalizedImages,
       createdAt,
+      reviewConfirmChecked: Boolean(reviewConfirmChecked),
     }
 
     const next = saveRecord(record)
@@ -537,6 +549,8 @@ export default function App() {
     setCurrentId(null)
     setCurrentCreatedAt(null)
     setCompareIds([])
+    setReviewConfirmChecked(false)
+    setReviewBangFromSave(false)
 
     if (!isGoogleConfigured()) {
       return
@@ -736,6 +750,8 @@ export default function App() {
     setCurrentCreatedAt(null)
     setSelectedCustomerId('')
     setCompareIds([])
+    setReviewConfirmChecked(false)
+    setReviewBangFromSave(false)
   }
 
   function handleDeleteAllData() {
@@ -776,6 +792,8 @@ export default function App() {
     const cid = getCustomerIdFromRecord(rec)
     setSelectedCustomerId(cid || (rec.customerName ? `NOID:${String(rec.customerName).trim()}` : ''))
     setCompareIds([])
+    setReviewConfirmChecked(Boolean(rec.reviewConfirmChecked))
+    setReviewBangFromSave(Boolean(rec.reviewConfirmChecked))
     window.scrollTo({ top: 0, behavior: 'smooth' })
     // 少し待ってからポップアップを再度有効化
     setTimeout(() => {
@@ -801,6 +819,8 @@ export default function App() {
     setErrors({})
     const cid = getCustomerIdFromRecord(rec)
     setSelectedCustomerId(cid || (rec.customerName ? `NOID:${String(rec.customerName).trim()}` : ''))
+    setReviewConfirmChecked(Boolean(rec.reviewConfirmChecked))
+    setReviewBangFromSave(Boolean(rec.reviewConfirmChecked))
     window.scrollTo({ top: 0, behavior: 'smooth' })
 
     setTimeout(() => {
@@ -1896,7 +1916,27 @@ export default function App() {
 
       <main className="layout">
         <div className="colLeft">
-          <SectionCard title="基本情報" subtitle="必須: 顧客ID・お客様名・施術メニュー">
+          <SectionCard
+            title="基本情報"
+            subtitle="必須: 顧客ID・お客様名・施術メニュー"
+            titleRight={
+              reviewBangFromSave && reviewConfirmChecked ? (
+                <span className="basicInfoReviewBang" title="保存時に「確認」が付いたデータを表示中">
+                  !
+                </span>
+              ) : null
+            }
+            right={
+              <label className="basicInfoConfirmCheck">
+                <input
+                  type="checkbox"
+                  checked={reviewConfirmChecked}
+                  onChange={(e) => updateBasicInfo({ reviewConfirmChecked: e.target.checked })}
+                />
+                <span>確認</span>
+              </label>
+            }
+          >
             <BasicInfoForm
               customerId={customerId}
               customerName={customerName}
@@ -2251,6 +2291,11 @@ export default function App() {
                 <div className="imageModalTitle">{memoModalRecord.customerName || '名称未設定'}</div>
                 <div className="imageModalSubtitle">
                   {memoModalRecord.customerId || ''} / {memoModalRecord.visitDate || ''}
+                  {memoModalRecord.reviewConfirmChecked &&
+                  memoModalRecord.formValues &&
+                  String(memoModalRecord.formValues.memo || '').trim() ? (
+                    <span className="reviewMemoModalTag"> ・要確認</span>
+                  ) : null}
                 </div>
               </div>
               <button type="button" className="btn small" onClick={handleCloseMemo}>

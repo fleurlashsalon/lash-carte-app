@@ -152,11 +152,45 @@ textarea {
   border-bottom: 1px solid rgba(92, 72, 84, 0.08);
 }
 
+.cardHeaderRight {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cardTitleRow:has(.cardTitleRight) {
+  gap: 2px;
+}
+
 .cardTitle {
   font-size: 14px;
   margin: 0;
   font-weight: 900;
   color: var(--ink);
+}
+
+/* 基本情報＋！：見出しと記号の縦方向の中央を一致させる */
+.cardTitleRow:has(.basicInfoReviewBang) {
+  align-items: center;
+}
+
+.cardTitleRow:has(.basicInfoReviewBang) .cardTitle {
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  min-height: 26px;
+}
+
+.cardTitleRight {
+  display: flex;
+  align-items: center;
 }
 
 .cardSubtitle {
@@ -300,6 +334,76 @@ textarea {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.basicInfoConfirmCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  min-height: 16px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.basicInfoConfirmCheck input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  align-self: center;
+  accent-color: var(--primary);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.basicInfoConfirmCheck span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.basicInfoReviewBang {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 26px;
+  margin-left: -3px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #c62828;
+  line-height: 1;
+  -webkit-text-stroke: 0.65px #9a1818;
+}
+
+.historyNeedsReviewBadge {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(198, 40, 40, 0.12);
+  color: #c62828;
+  border: 1px solid rgba(198, 40, 40, 0.28);
+  vertical-align: middle;
+}
+
+.reviewMemoModalTag {
+  color: #c62828;
+  font-weight: 900;
 }
 
 .fieldSpan2 {

@@ -50,6 +50,7 @@ export default function HistoryList({
             ? rec.formValues.memo.trim()
             : ''
         const hasMemo = Boolean(memoText)
+        const needsReviewMark = Boolean(rec.reviewConfirmChecked) && hasMemo
         const td = rec.treatmentDetails
         const hasExt = td?.ext && Object.keys(td.ext).length > 0
         const hasPerm = td?.perm && Object.keys(td.perm).length > 0
@@ -63,6 +64,11 @@ export default function HistoryList({
                 <div className="historyName">
                   {rec.customerName || '名称未設定'}
                   {rec.customerKana ? <span className="historyKana">（{rec.customerKana}）</span> : null}
+                  {needsReviewMark ? (
+                    <span className="historyNeedsReviewBadge" title="確認済みフラグ＋メモあり">
+                      要確認
+                    </span>
+                  ) : null}
                 </div>
                 <div className="historyDate">{rec.visitDate}</div>
               </div>
@@ -107,9 +113,20 @@ export default function HistoryList({
                 </button>
               )}
 
-              {hasMemo && (
+              {hasMemo && !needsReviewMark && (
                 <button type="button" className="btn small" onClick={() => onOpenMemo?.(rec)}>
                   メモ有
+                </button>
+              )}
+
+              {needsReviewMark && (
+                <button
+                  type="button"
+                  className="btn small danger"
+                  onClick={() => onOpenMemo?.(rec)}
+                  title="メモをポップアップで表示"
+                >
+                  メモ確認
                 </button>
               )}
 
