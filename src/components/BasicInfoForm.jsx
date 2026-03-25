@@ -13,7 +13,8 @@ export default function BasicInfoForm({
   treatmentMenu,
   visitDate,
   onChange,
-  onCustomerNameBlur,
+  /** 顧客ID・お客様名・カナ・電話のいずれかからフォーカスが外れたとき（登録済み照合用） */
+  onIdentityFieldsBlur,
   errors = {},
 }) {
   // 後方互換: 既存データのメニューが新リストにない場合は先頭に追加して表示
@@ -35,6 +36,7 @@ export default function BasicInfoForm({
           value={customerId}
           placeholder="例) A-00001（未入力時は自動採番）"
           onChange={(e) => onChange({ customerId: e.target.value })}
+          onBlur={() => onIdentityFieldsBlur?.()}
         />
         {errors.customerId ? <div className="errorText">{errors.customerId}</div> : null}
       </div>
@@ -50,7 +52,7 @@ export default function BasicInfoForm({
           value={customerName}
           placeholder="例) 山田 花子"
           onChange={(e) => onChange({ customerName: e.target.value })}
-          onBlur={() => onCustomerNameBlur?.()}
+          onBlur={() => onIdentityFieldsBlur?.()}
         />
         {errors.customerName ? <div className="errorText">{errors.customerName}</div> : null}
       </div>
@@ -66,6 +68,7 @@ export default function BasicInfoForm({
           value={customerKana}
           placeholder="例) ヤマダ ハナコ"
           onChange={(e) => onChange({ customerKana: e.target.value })}
+          onBlur={() => onIdentityFieldsBlur?.()}
         />
         {errors.customerKana ? <div className="errorText">{errors.customerKana}</div> : null}
       </div>
@@ -101,6 +104,7 @@ export default function BasicInfoForm({
           value={phone}
           placeholder="例) 090-1234-5678"
           onChange={(e) => onChange({ phone: e.target.value })}
+          onBlur={() => onIdentityFieldsBlur?.()}
         />
         {errors.phone ? <div className="errorText">{errors.phone}</div> : null}
       </div>

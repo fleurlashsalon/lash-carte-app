@@ -438,6 +438,36 @@ textarea {
   word-break: break-word;
 }
 
+.customerMatchModal.customerMatchModal {
+  max-width: 520px;
+}
+
+.customerMatchModalStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.customerMatchPickBtn {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+  white-space: normal;
+  height: auto;
+  min-height: 44px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.customerMatchSaveActions {
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(92, 72, 84, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .fieldSpan2 {
   grid-column: span 2;
 }

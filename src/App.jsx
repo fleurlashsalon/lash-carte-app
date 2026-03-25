@@ -90,6 +90,8 @@ export default function App() {
   const [memoModalRecord, setMemoModalRecord] = useState(null)
   /** 名前で基本情報を読み込んだ際、「確認」付きメモの一覧 */
   const [reviewMemoListModal, setReviewMemoListModal] = useState(null)
+  /** 登録済み顧客の呼び出し確認（ブラウザconfirmではなくアプリ内モーダル） */
+  const [customerMatchModal, setCustomerMatchModal] = useState(null)
   /** 任意「確認」チェック（保存時に記録へ含める） */
   const [reviewConfirmChecked, setReviewConfirmChecked] = useState(false)
   /** 保存データ呼び出し時に「確認」が付いていた場合のみ true（手動チェックでは true にしない） */
@@ -119,8 +121,9 @@ export default function App() {
   const [showSaveToast, setShowSaveToast] = useState(false)
   const saveToastTimerRef = useRef(null)
   const csvInputRef = useRef(null)
-  const customerNameRef = useRef(customerName)
   const suppressExistingNamePopupRef = useRef(false)
+  /** 基本情報読込直後は同一照合モーダルが連続で出ないようにする */
+  const suppressCustomerMatchUntilRef = useRef(0)
   const lastAutoLoadedCustomerIdRef = useRef('')
   const HISTORY_PAGE_SIZE = 10
   const [historyPage, setHistoryPage] = useState(1)
@@ -194,6 +197,53 @@ export default function App() {
     if (!matches.length) return null
     const sorted = [...matches].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     return sorted[0]
+  }
+
+  function normalizePhoneDigits(s) {
+    return String(s || '').replace(/\D/g, '')
+  }
+
+  function getCustomerRecordKey(rec) {
+    const id = getCustomerIdFromRecord(rec)
+    if (id) return `ID:${id}`
+    const n = String(rec.customerName || '').trim()
+    return n ? `NOID:${n}` : ''
+  }
+
+  /**
+   * 顧客ID・お客様名・カナ・電話のいずれかが一致する顧客を列挙（顧客ごとに最新履歴1件）
+   */
+  function findMatchingCustomersForBasicInfo({ customerId: cidIn, customerName, customerKana, phone }) {
+    const idQ = String(cidIn || '').trim()
+    const nameQ = String(customerName || '').trim()
+    const kanaQ = String(customerKana || '').trim()
+    const phoneQ = String(phone || '').trim()
+    const phoneDigits = normalizePhoneDigits(phoneQ)
+    if (!idQ && !nameQ && !kanaQ && !phoneQ && !phoneDigits.length) return []
+
+    const keyToLatest = new Map()
+    for (const r of records) {
+      const key = getCustomerRecordKey(r)
+      if (!key) continue
+      const idMatch = idQ && getCustomerIdFromRecord(r) === idQ
+      const nameMatch = nameQ && String(r.customerName || '').trim() === nameQ
+      const kanaMatch = kanaQ && String(r.customerKana || '').trim() === kanaQ
+      const phoneMatch = phoneDigits.length > 0 && normalizePhoneDigits(r.phone) === phoneDigits
+      if (!idMatch && !nameMatch && !kanaMatch && !phoneMatch) continue
+      const prev = keyToLatest.get(key)
+      if (!prev || (r.createdAt || 0) > (prev.createdAt || 0)) {
+        keyToLatest.set(key, r)
+      }
+    }
+    return Array.from(keyToLatest.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  }
+
+  function formatCustomerMatchLabel(rec) {
+    const id = getCustomerIdFromRecord(rec) || 'IDなし'
+    const nm = rec.customerName || '名称未設定'
+    const kn = (rec.customerKana || '').trim()
+    const ph = (rec.phone || '').trim()
+    return `${nm}${kn ? `（${kn}）` : ''} / ID: ${id}${ph ? ` / ${ph}` : ''}`
   }
 
   const menuFlags = useMemo(() => {
@@ -494,22 +544,29 @@ export default function App() {
   }
 
   async function handleSave() {
+    if (customerMatchModal) return
     if (!validate()) return
 
     let effectiveCustomerId = customerId.trim()
     if (!effectiveCustomerId && customerName.trim()) {
-      const existing = findExistingCustomerByName(customerName)
-      if (existing) {
-        const msg = `お客様名「${customerName.trim()}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま新規登録（新しい顧客IDを採番）`
-        if (window.confirm(msg)) {
-          handleLoadBasicInfoOnly(existing)
-          return
-        }
+      const matches = findMatchingCustomersForBasicInfo({
+        customerId: '',
+        customerName,
+        customerKana,
+        phone,
+      })
+      if (matches.length > 0) {
+        setCustomerMatchModal({ mode: 'save', matches })
+        return
       }
       effectiveCustomerId = getNextAutoCustomerId()
       setCustomerId(effectiveCustomerId)
     }
 
+    await executeSaveBody(effectiveCustomerId)
+  }
+
+  async function executeSaveBody(effectiveCustomerId) {
     // 毎回新しい履歴として保存する（過去履歴を上書きしない）
     const id = createId()
     const createdAt = Date.now()
@@ -579,6 +636,8 @@ export default function App() {
     setCompareIds([])
     setReviewConfirmChecked(false)
     setReviewBangFromSave(false)
+    setReviewMemoListModal(null)
+    setCustomerMatchModal(null)
 
     if (!isGoogleConfigured()) {
       return
@@ -781,6 +840,7 @@ export default function App() {
     setReviewConfirmChecked(false)
     setReviewBangFromSave(false)
     setReviewMemoListModal(null)
+    setCustomerMatchModal(null)
   }
 
   function handleDeleteAllData() {
@@ -866,6 +926,7 @@ export default function App() {
 
     setTimeout(() => {
       suppressExistingNamePopupRef.current = false
+      suppressCustomerMatchUntilRef.current = Date.now() + 800
     }, 50)
   }
 
@@ -927,50 +988,46 @@ export default function App() {
     setCompareIds([])
   }
 
-  /** お客様名の入力が離れたとき、登録済み同名なら読み込み確認 */
-  function handleCustomerNameBlur() {
-    const name = customerName.trim()
-    if (!name) return
+  /** 顧客ID・お客様名・カナ・電話のいずれかからフォーカスが外れたとき、登録済みがあればアプリ内モーダルで確認（1回のみ・デバウンスなし） */
+  function handleBasicInfoIdentityBlur() {
     if (suppressExistingNamePopupRef.current) return
-    const existing = findExistingCustomerByName(name)
-    if (!existing) return
-    if (currentId === existing.id) return
-    const msg = `お客様名「${name}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま入力続行（新規登録）`
-    const ok = window.confirm(msg)
-    if (ok) {
-      handleLoadBasicInfoOnly(existing)
-      return
-    }
-    // キャンセル=新規登録続行：既存IDが入っている場合は解除して修正できるようにする
-    if (String(customerId || '').trim() && String(customerId || '').trim() === String(existing.customerId || '').trim()) {
-      setCustomerId('')
-      setSelectedCustomerId('')
-    }
+    if (Date.now() < suppressCustomerMatchUntilRef.current) return
+
+    const idQ = customerId.trim()
+    const nameQ = customerName.trim()
+    const kanaQ = customerKana.trim()
+    const phoneQ = phone.trim()
+    if (!idQ && !nameQ && !kanaQ && !phoneQ) return
+
+    const matches = findMatchingCustomersForBasicInfo({
+      customerId,
+      customerName,
+      customerKana,
+      phone,
+    })
+    if (matches.length === 0) return
+    if (matches.length === 1 && matches[0].id === currentId) return
+
+    setCustomerMatchModal({ mode: 'blur', matches })
   }
 
-  /** お客様名を入力した時点で、登録済み同名ならポップアップ（3ms デバウンス） */
-  customerNameRef.current = customerName
-  useEffect(() => {
-    const id = setTimeout(() => {
-      if (suppressExistingNamePopupRef.current) return
-      const name = customerNameRef.current.trim()
-      if (!name) return
-      const existing = findExistingCustomerByName(name)
-      if (!existing) return
-      if (currentId === existing.id) return
-      const msg = `お客様名「${name}」は顧客ID「${existing.customerId}」で登録済みです。\nこのお客様の情報を読み込みますか？\n\nOK → 情報を読み込む\nキャンセル → そのまま入力続行（新規登録）`
-      const ok = window.confirm(msg)
-      if (ok) {
-        handleLoadBasicInfoOnly(existing)
-        return
-      }
-      if (String(customerId || '').trim() && String(customerId || '').trim() === String(existing.customerId || '').trim()) {
+  function handleCustomerMatchPick(rec) {
+    setCustomerMatchModal(null)
+    handleLoadBasicInfoOnly(rec)
+  }
+
+  function handleCustomerMatchCancelBlur(matches) {
+    setCustomerMatchModal(null)
+    const idTrim = String(customerId || '').trim()
+    for (const rec of matches) {
+      const cid = getCustomerIdFromRecord(rec)
+      if (cid && idTrim === cid) {
         setCustomerId('')
         setSelectedCustomerId('')
+        break
       }
-    }, 3)
-    return () => clearTimeout(id)
-  }, [customerName, records, currentId])
+    }
+  }
 
   function handleToggleCompare(id) {
     setCompareIds((prev) => {
@@ -1990,7 +2047,7 @@ export default function App() {
               treatmentMenu={menuType}
               visitDate={visitDate}
               onChange={updateBasicInfo}
-              onCustomerNameBlur={handleCustomerNameBlur}
+              onIdentityFieldsBlur={handleBasicInfoIdentityBlur}
               errors={errors}
             />
           </SectionCard>
@@ -2389,6 +2446,96 @@ export default function App() {
                     <div className="reviewMemoListText">{item.memo}</div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {customerMatchModal && customerMatchModal.matches?.length ? (
+        <div
+          className="imageModalOverlay"
+          onClick={() => {
+            if (customerMatchModal.mode === 'blur') {
+              handleCustomerMatchCancelBlur(customerMatchModal.matches)
+            } else {
+              setCustomerMatchModal(null)
+            }
+          }}
+        >
+          <div className="imageModal customerMatchModal" onClick={(e) => e.stopPropagation()}>
+            <div className="imageModalHeader">
+              <div>
+                <div className="imageModalTitle">
+                  {customerMatchModal.matches.length > 1
+                    ? customerMatchModal.mode === 'blur'
+                      ? '複数のお客様が一致しました'
+                      : '複数の登録済みが見つかりました'
+                    : customerMatchModal.mode === 'blur'
+                      ? '登録済みのお客様が見つかりました'
+                      : '登録済みお客様との一致'}
+                </div>
+                <div className="imageModalSubtitle">
+                  {customerMatchModal.mode === 'blur'
+                    ? customerMatchModal.matches.length > 1
+                      ? '呼び出すお客様を選んでください。キャンセルはそのまま入力を続けます。'
+                      : 'このお客様の基本情報を読み込みますか？'
+                    : '読み込むか、新規の顧客IDを採番して保存するか選んでください。'}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn small"
+                onClick={() => {
+                  if (customerMatchModal.mode === 'blur') {
+                    handleCustomerMatchCancelBlur(customerMatchModal.matches)
+                  } else {
+                    setCustomerMatchModal(null)
+                  }
+                }}
+              >
+                {customerMatchModal.mode === 'blur' ? 'キャンセル' : '閉じる'}
+              </button>
+            </div>
+            <div className="imageModalBody">
+              <div className="customerMatchModalStack">
+                {customerMatchModal.matches.map((rec) => (
+                  <button
+                    key={rec.id}
+                    type="button"
+                    className="btn primary customerMatchPickBtn"
+                    onClick={() => handleCustomerMatchPick(rec)}
+                  >
+                    {formatCustomerMatchLabel(rec)} を読み込む
+                  </button>
+                ))}
+                {customerMatchModal.mode === 'save' ? (
+                  <div className="customerMatchSaveActions">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setCustomerMatchModal(null)
+                        const newId = getNextAutoCustomerId()
+                        setCustomerId(newId)
+                        void executeSaveBody(newId)
+                      }}
+                    >
+                      新規顧客として保存（採番）
+                    </button>
+                    <p className="mutedText" style={{ margin: 0, fontSize: 12 }}>
+                      上記いずれでもない場合は新規採番して保存できます。
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn subtle"
+                    onClick={() => handleCustomerMatchCancelBlur(customerMatchModal.matches)}
+                  >
+                    キャンセル（そのまま直接入力）
+                  </button>
+                )}
               </div>
             </div>
           </div>
