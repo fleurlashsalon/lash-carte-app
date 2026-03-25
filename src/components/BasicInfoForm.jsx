@@ -109,13 +109,13 @@ export default function BasicInfoForm({
         {errors.phone ? <div className="errorText">{errors.phone}</div> : null}
       </div>
 
-      <div className="field">
+      <div className="field fieldVisitDate">
         <label className="inputLabel" htmlFor="visitDate">
           施術日（任意）
         </label>
         <input
           id="visitDate"
-          className="textInput"
+          className="textInput textInputDateCompact"
           type="date"
           value={visitDate}
           onChange={(e) => onChange({ visitDate: e.target.value })}

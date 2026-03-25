@@ -336,6 +336,29 @@ textarea {
   gap: 12px;
 }
 
+/* 施術日：iPad等で3列目が広く date 入力が右端に寄って見えるのを抑える */
+.fieldVisitDate {
+  justify-self: start;
+  width: min(100%, 12.5rem);
+  max-width: 100%;
+}
+
+.fieldVisitDate .textInputDateCompact[type='date'] {
+  width: 100%;
+  min-width: 0;
+  max-width: 12.5rem;
+}
+
+@media (max-width: 1024px) {
+  .fieldVisitDate {
+    width: min(100%, 11.25rem);
+  }
+
+  .fieldVisitDate .textInputDateCompact[type='date'] {
+    max-width: 11.25rem;
+  }
+}
+
 .basicInfoConfirmCheck {
   display: inline-flex;
   align-items: center;
