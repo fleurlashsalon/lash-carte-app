@@ -40,6 +40,7 @@ import {
 } from './utils/storage.js'
 import { buildCsv, exportScoreSheetCsv } from './utils/csvExport.js'
 import { loadJapaneseFont } from './utils/pdfFont.js'
+import { getSelectedProductLabelsFromTreatment } from './utils/productPurchases.js'
 
 const INITIAL_FORM = {
   eyeShape: undefined,
@@ -252,6 +253,21 @@ export default function App() {
       isExt: isExtensionMenu(menuType),
     }
   }, [menuType])
+
+  const basicInfoSubtitle = useMemo(() => {
+    const labels = getSelectedProductLabelsFromTreatment(menuType, treatmentDetails)
+    return (
+      <>
+        必須: 顧客ID・お客様名・施術メニュー
+        {labels.length > 0 ? (
+          <>
+            <br />
+            購入: {labels.join('、')}
+          </>
+        ) : null}
+      </>
+    )
+  }, [menuType, treatmentDetails])
 
   const structureScore = useMemo(() => getStructureScore(formValues), [formValues])
   const lifestyleScore = useMemo(() => getLifestyleScore(formValues), [formValues])
@@ -2020,7 +2036,7 @@ export default function App() {
         <div className="colLeft">
           <SectionCard
             title="基本情報"
-            subtitle="必須: 顧客ID・お客様名・施術メニュー"
+            subtitle={basicInfoSubtitle}
             titleRight={
               reviewBangFromSave && reviewConfirmChecked ? (
                 <span className="basicInfoReviewBang" title="保存時に「確認」が付いたデータを表示中">
