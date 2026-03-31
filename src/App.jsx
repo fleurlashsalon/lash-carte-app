@@ -1485,6 +1485,7 @@ export default function App() {
       menuType: r.menuType || r.treatmentMenu || '',
       treatmentMenu: r.treatmentMenu || r.menuType || '',
       treatmentDetailsJson: JSON.stringify(r.treatmentDetails || {}),
+      reviewConfirmChecked: Boolean(r.reviewConfirmChecked),
       structureScore: r.structureScore ?? '',
       lifestyleScore: r.lifestyleScore ?? '',
       conditionScore: r.conditionScore ?? '',
@@ -1510,6 +1511,7 @@ export default function App() {
     'menuType',
     'treatmentMenu',
     'treatmentDetailsJson',
+    'reviewConfirmChecked',
     'structureScore',
     'lifestyleScore',
     'conditionScore',
@@ -1871,6 +1873,11 @@ export default function App() {
 
   function csvRowToRecord(row) {
     const num = (v) => (v === '' || v == null ? undefined : Number(v))
+    const bool = (v) => {
+      if (v === '' || v == null) return false
+      const s = String(v).trim().toLowerCase()
+      return s === 'true' || s === '1' || s === 'yes' || s === 'y'
+    }
     let formValues = {}
     if (row.formValuesJson) {
       try {
@@ -1917,6 +1924,7 @@ export default function App() {
       menuType: String(row.menuType || row.treatmentMenu || '').trim(),
       treatmentMenu: String(row.treatmentMenu || row.menuType || '').trim(),
       treatmentDetails,
+      reviewConfirmChecked: bool(row.reviewConfirmChecked),
       structureScore: num(row.structureScore) ?? 0,
       lifestyleScore: num(row.lifestyleScore) ?? 0,
       conditionScore: num(row.conditionScore) ?? 0,
