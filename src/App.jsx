@@ -3,6 +3,7 @@ import { toPng } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 import SectionCard from './components/SectionCard.jsx'
 import BasicInfoForm from './components/BasicInfoForm.jsx'
+import BasicInfoPurchaseList from './components/BasicInfoPurchaseList.jsx'
 import TreatmentDetailForm from './components/TreatmentDetailForm.jsx'
 import HorizontalRadioGroup from './components/HorizontalRadioGroup.jsx'
 import ScoreSummary from './components/ScoreSummary.jsx'
@@ -29,18 +30,26 @@ import {
 } from './utils/scoring.js'
 import {
   clearAllRecords,
+  clearPurchaseSuppressions,
   deleteRecord,
   forceResetPinToDefault,
+  getPurchaseSuppressionsMap,
   getRecords,
   isGoogleConfigured,
   replaceRecords,
   savePdfToGoogle,
+  savePurchaseSuppressionsMap,
   saveRecord,
   saveToGoogle,
 } from './utils/storage.js'
 import { buildCsv, exportScoreSheetCsv } from './utils/csvExport.js'
 import { loadJapaneseFont } from './utils/pdfFont.js'
-import { getSelectedProductLabelsFromTreatment } from './utils/productPurchases.js'
+import {
+  buildProductPurchaseRows,
+  collectProductLabelsFromTreatmentDetails,
+  getPurchaseCustomerKey,
+  PRODUCT_DETAIL_BLOCK_IDS,
+} from './utils/productPurchases.js'
 
 const INITIAL_FORM = {
   eyeShape: undefined,
@@ -91,6 +100,10 @@ export default function App() {
   const [memoModalRecord, setMemoModalRecord] = useState(null)
   /** 名前で基本情報を読み込んだ際、「確認」付きメモの一覧 */
   const [reviewMemoListModal, setReviewMemoListModal] = useState(null)
+  /** 顧客キーごとに、基本情報の購入一覧から隠す商品ラベル */
+  const [purchaseSuppressionsByCustomer, setPurchaseSuppressionsByCustomer] = useState(() =>
+    getPurchaseSuppressionsMap(),
+  )
   /** 登録済み顧客の呼び出し確認（ブラウザconfirmではなくアプリ内モーダル） */
   const [customerMatchModal, setCustomerMatchModal] = useState(null)
   /** 任意「確認」チェック（保存時に記録へ含める） */
@@ -254,20 +267,35 @@ export default function App() {
     }
   }, [menuType])
 
-  const basicInfoSubtitle = useMemo(() => {
-    const labels = getSelectedProductLabelsFromTreatment(menuType, treatmentDetails)
-    return (
-      <>
-        必須: 顧客ID・お客様名・施術メニュー
-        {labels.length > 0 ? (
-          <>
-            <br />
-            購入: {labels.join('、')}
-          </>
-        ) : null}
-      </>
-    )
-  }, [menuType, treatmentDetails])
+  const purchaseRows = useMemo(() => {
+    const key = getPurchaseCustomerKey(customerId, customerName)
+    const suppressed = new Set(key ? purchaseSuppressionsByCustomer[key] || [] : [])
+    return buildProductPurchaseRows({
+      records,
+      customerId,
+      customerName,
+      treatmentDetails,
+      visitDate,
+      suppressedLabels: suppressed,
+    })
+  }, [records, customerId, customerName, treatmentDetails, visitDate, purchaseSuppressionsByCustomer])
+
+  useEffect(() => {
+    const key = getPurchaseCustomerKey(customerId, customerName)
+    if (!key) return
+    const checked = new Set(collectProductLabelsFromTreatmentDetails(treatmentDetails))
+    setPurchaseSuppressionsByCustomer((prev) => {
+      const arr = prev[key]
+      if (!arr?.length) return prev
+      const nextArr = arr.filter((l) => !checked.has(l))
+      if (nextArr.length === arr.length) return prev
+      const next = { ...prev }
+      if (nextArr.length) next[key] = nextArr
+      else delete next[key]
+      savePurchaseSuppressionsMap(next)
+      return next
+    })
+  }, [treatmentDetails, customerId, customerName])
 
   const structureScore = useMemo(() => getStructureScore(formValues), [formValues])
   const lifestyleScore = useMemo(() => getLifestyleScore(formValues), [formValues])
@@ -529,6 +557,32 @@ export default function App() {
         [fieldId]: value,
       },
     }))
+  }
+
+  function handleRemovePurchaseLabel(label) {
+    setTreatmentDetails((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const blockId of PRODUCT_DETAIL_BLOCK_IDS) {
+        const block = next[blockId]
+        const arr = block?.products
+        if (!Array.isArray(arr) || !arr.includes(label)) continue
+        changed = true
+        next[blockId] = { ...block, products: arr.filter((x) => x !== label) }
+      }
+      return changed ? next : prev
+    })
+
+    const key = getPurchaseCustomerKey(customerId, customerName)
+    if (!key) return
+
+    setPurchaseSuppressionsByCustomer((prev) => {
+      const existing = prev[key] || []
+      if (existing.includes(label)) return prev
+      const next = { ...prev, [key]: [...existing, label] }
+      savePurchaseSuppressionsMap(next)
+      return next
+    })
   }
 
   function setAnswer(key, value) {
@@ -863,6 +917,8 @@ export default function App() {
     const ok = window.confirm('全てのデータが削除されますがよろしいですか？\n（登録したお客様情報・画像・履歴が全て消えます）')
     if (!ok) return
     clearAllRecords()
+    clearPurchaseSuppressions()
+    setPurchaseSuppressionsByCustomer({})
     setRecords([])
     setImageManagerActiveRecordId('')
     setImageManagerOpen(false)
@@ -2036,7 +2092,6 @@ export default function App() {
         <div className="colLeft">
           <SectionCard
             title="基本情報"
-            subtitle={basicInfoSubtitle}
             titleRight={
               reviewBangFromSave && reviewConfirmChecked ? (
                 <span className="basicInfoReviewBang" title="保存時に「確認」が付いたデータを表示中">
@@ -2066,6 +2121,7 @@ export default function App() {
               onIdentityFieldsBlur={handleBasicInfoIdentityBlur}
               errors={errors}
             />
+            <BasicInfoPurchaseList rows={purchaseRows} onRemove={handleRemovePurchaseLabel} />
           </SectionCard>
 
           <SectionCard title="画像アップロード" subtitle="jpg / jpeg / png（複数可）">

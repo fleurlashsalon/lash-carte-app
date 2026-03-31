@@ -1,5 +1,39 @@
 const STORAGE_KEY = 'lash-score-records'
 const PIN_STORAGE_KEY = 'lash-score-pin'
+const PURCHASE_SUPPRESS_KEY = 'lash-score-purchase-suppressions'
+
+export function getPurchaseSuppressionsMap() {
+  try {
+    const raw = localStorage.getItem(PURCHASE_SUPPRESS_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const out = {}
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!Array.isArray(v)) continue
+      out[k] = [...new Set(v.map((x) => String(x ?? '').trim()).filter(Boolean))]
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+export function savePurchaseSuppressionsMap(map) {
+  try {
+    localStorage.setItem(PURCHASE_SUPPRESS_KEY, JSON.stringify(map || {}))
+  } catch (e) {
+    console.error('savePurchaseSuppressionsMap', e)
+  }
+}
+
+export function clearPurchaseSuppressions() {
+  try {
+    localStorage.removeItem(PURCHASE_SUPPRESS_KEY)
+  } catch {
+    // ignore
+  }
+}
 
 /** アプリのPIN（パスワード）を強制的に 0000 に戻す */
 export function forceResetPinToDefault() {

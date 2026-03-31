@@ -160,6 +160,7 @@ export const PERM_DETAIL_FIELDS = [
       { value: 'ペッタ', label: 'ペッタ' },
       { value: 'シェル', label: 'シェル' },
       { value: 'Cカール', label: 'Cカール' },
+      { value: '匠', label: '匠' },
       { value: '水餃子', label: '水餃子' },
       { value: '猫', label: '猫' },
       { value: 'リボン', label: 'リボン' },
